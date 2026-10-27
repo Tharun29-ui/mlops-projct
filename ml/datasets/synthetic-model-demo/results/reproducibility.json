@@ -1,0 +1,13 @@
+{
+  "same_seed_regeneration_identical_datasets_predictions_and_model_bytes": true,
+  "sha256": {
+    "purchase\\purchase-lines.csv": "f24a4c5733b4e0e543c11a634296791d079b07f565b4c4e2e7e5c72888bae094",
+    "sales\\sales-lines.csv": "f51b60104e8b9d44feea28c8baf3fb91bd64aff8d009c51506ff20215b79a870",
+    "results\\test-predictions.csv": "fc2f69759df70f6a427f0b08e1555f85f52cf1c4a75e373f47d33d23ce98e106",
+    "results\\next-month-product-plan.csv": "80dcff19efec38fb2bf48f8d99c51bcba516949fa9ade0f6056ba5b72c30926a",
+    "results\\demand-model.json": "e04de9718667ffecb00452f4726f4b3d747f82dd4e82814135ae80594b0b70a8",
+    "results\\sale-model.json": "79e8de43e1c2ff22885cb726bd0a115a486dcae4c7215d78ae80d73ef33e4464",
+    "results\\purchase-model.json": "5d8a58aa2c8a7aeef70b0e06d971a2131e90d7ba57341c0e9657720cc7f6f474"
+  },
+  "public_release_note": "Public-copy artifact hashes; original isolated reproducibility check was completed before publication."
+}

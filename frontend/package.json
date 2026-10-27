@@ -1,0 +1,23 @@
+{
+  "name": "autonomous-business-os-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test:models": "tsc --ignoreConfig src/forecastPlan.ts --target ES2022 --module commonjs --outDir ../tmp/model-ui-tests --skipLibCheck && node --test tests/forecastPlan.cjs"
+  },
+  "dependencies": {
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
+    "typescript": "latest",
+    "vite": "latest"
+  }
+}

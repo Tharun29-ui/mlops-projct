@@ -1,0 +1,23 @@
+{
+  "demand": {
+    "heldout_target_change_leaves_selection_and_validation_model_unchanged": true,
+    "portable_saved_evaluation_model_reproduces_metrics": true,
+    "test_rows": 24,
+    "test_wape": 0.0734
+  },
+  "SALE": {
+    "heldout_target_change_leaves_selection_and_validation_model_unchanged": true,
+    "portable_saved_evaluation_model_reproduces_metrics": true,
+    "test_rows": 24,
+    "test_wape": 0.00195
+  },
+  "PURCHASE": {
+    "heldout_target_change_leaves_selection_and_validation_model_unchanged": true,
+    "portable_saved_evaluation_model_reproduces_metrics": true,
+    "test_rows": 24,
+    "test_wape": 0.00242
+  },
+  "stock_nonnegative": true,
+  "real_artifacts_unchanged": true,
+  "live_data_not_modified": true
+}

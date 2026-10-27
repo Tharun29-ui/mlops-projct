@@ -1,0 +1,19 @@
+{
+  "synthetic": true,
+  "source_hashes": {
+    "purchase/purchase-lines.csv": "f24a4c5733b4e0e543c11a634296791d079b07f565b4c4e2e7e5c72888bae094",
+    "sales/sales-lines.csv": "f51b60104e8b9d44feea28c8baf3fb91bd64aff8d009c51506ff20215b79a870"
+  },
+  "coverage": {
+    "start": "2024-10-01",
+    "end": "2026-09-30",
+    "months": 24,
+    "products": 6,
+    "sales_lines": 4380,
+    "purchase_lines": 255,
+    "daily_rows": 4380,
+    "sample_pdfs_each_direction": 10,
+    "complete_simulated_sales": true
+  },
+  "public_release_note": "Public source snapshot: CSV byte hashes refreshed after removing encoding BOM; numeric dataset values and measured model scores unchanged."
+}

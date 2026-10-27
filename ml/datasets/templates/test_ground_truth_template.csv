@@ -1,0 +1,11 @@
+relative_path,split,vendor_name,invoice_date,grand_total,currency,reviewed_by,reviewed_at
+data/sample_invoices/11-Printer Service.pdf,test,,,,,,
+data/sample_invoices/13.pdf,test,,,,,,
+data/sample_invoices/26.pdf,test,,,,,,
+data/sample_invoices/37.pdf,test,,,,,,
+data/sample_invoices/39.pdf,test,,,,,,
+data/sample_invoices/41.pdf,test,,,,,,
+data/sample_invoices/44.pdf,test,,,,,,
+data/sample_invoices/47.pdf,test,,,,,,
+data/sample_invoices/50.pdf,test,,,,,,
+data/sample_invoices/53.pdf,test,,,,,,

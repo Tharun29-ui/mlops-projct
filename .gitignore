@@ -1,0 +1,46 @@
+# Secrets and machine-specific configuration
+.env
+.env.*
+!.env.example
+.aws/
+.codex/
+*.pem
+*.key
+*.p12
+*.pfx
+*credentials*
+# Generated dependencies and build output
+.venv/
+venv/
+node_modules/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+dist/
+build/
+*.tsbuildinfo
+cdk.*.out/
+cdk.out/
+.npm-cache/
+abos-test-*/
+# Private business records and operational evidence
+/data/
+/backups/
+/demo-results/
+/tmp/
+/reports/
+backend/app/data/*
+!backend/app/data/README.md
+ml/artifacts/
+ml/datasets/all-real/
+ml/datasets/real-invoice-history/
+ml/datasets/real-upload-receipts.json
+ml/datasets/selected-real-20.json
+ml/datasets/source-manifests/
+ml/sagemaker/evidence/
+**/*deploy-outputs*.json
+infra/cdk.context.json
+*.db
+*.sqlite*
+*.log

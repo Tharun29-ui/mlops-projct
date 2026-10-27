@@ -1,0 +1,830 @@
+{
+  "data_source": "SYNTHETIC_SIMULATION_ONLY",
+  "seed": 20261025,
+  "coverage": {
+    "start": "2024-10-01",
+    "end": "2026-09-30",
+    "months": 24,
+    "products": 6,
+    "sales_lines": 4380,
+    "purchase_lines": 255,
+    "daily_rows": 4380,
+    "sample_pdfs_each_direction": 10,
+    "complete_simulated_sales": true
+  },
+  "generator": "Predeclared seasonal demand, gradual trend, weekday pattern and random noise. Purchase/selling price include gradual trend and seasonal variation. No tuning against final test results.",
+  "evaluation_protocol": "Project monthly trainer reused without executing its real-data main function. Last 20 percent of target months held out. Expanding earlier folds select the method. Metrics are rolling one-step-ahead with observed prior test months, not a single four-month-ahead forecast.",
+  "test_start": "2026-06-01",
+  "metrics": {
+    "demand": {
+      "selected_algorithm": "ridge_absolute",
+      "status": "SYNTHETIC_SIMULATION_ONLY",
+      "observations": 138,
+      "distinct_target_dates": 23,
+      "selection": "expanding_date_folds_before_final_test",
+      "test_start": "2026-06-01",
+      "validation_scores": {
+        "last_value": {
+          "rows": 60,
+          "mae": 25.25,
+          "wape": 0.12071
+        },
+        "random_forest": {
+          "rows": 60,
+          "mae": 18.45579,
+          "wape": 0.08823
+        },
+        "gradient_boosting": {
+          "rows": 60,
+          "mae": 20.83124,
+          "wape": 0.09958
+        },
+        "forest_absolute": {
+          "rows": 60,
+          "mae": 27.45067,
+          "wape": 0.13123
+        },
+        "ridge_absolute": {
+          "rows": 60,
+          "mae": 16.39754,
+          "wape": 0.07839
+        }
+      },
+      "test_metrics": {
+        "rows": 24,
+        "mae": 12.86578,
+        "wape": 0.0734
+      },
+      "baseline_metrics": {
+        "rows": 24,
+        "mae": 25.08333,
+        "wape": 0.14309
+      },
+      "baseline_beaten": true,
+      "quality_gate": {
+        "passed": true,
+        "maximum_wape": 0.5,
+        "minimum_test_rows": 3,
+        "must_not_underperform_baseline": true,
+        "scope": "Synthetic recorded-label gate only, not evidence of real-business forecasting"
+      },
+      "test_metrics_by_quantity_group": {
+        "camera:piece": {
+          "rows": 4,
+          "mae": 24.64899,
+          "wape": 0.06852
+        },
+        "harddisk:piece": {
+          "rows": 4,
+          "mae": 20.94388,
+          "wape": 0.11096
+        },
+        "monitor:piece": {
+          "rows": 4,
+          "mae": 7.97555,
+          "wape": 0.04977
+        },
+        "nvr:piece": {
+          "rows": 4,
+          "mae": 7.12985,
+          "wape": 0.092
+        },
+        "printer:piece": {
+          "rows": 4,
+          "mae": 4.81387,
+          "wape": 0.0904
+        },
+        "toner:piece": {
+          "rows": 4,
+          "mae": 11.68256,
+          "wape": 0.05504
+        }
+      },
+      "validation_relative_error": 0.14471,
+      "range_method": "80th percentile past validation relative error sensitivity; not calibrated coverage",
+      "test_predictions": [
+        {
+          "date": "2026-06-01",
+          "product_key": "SYN-CAM",
+          "actual": 433,
+          "predicted": 409.44946,
+          "baseline": 497
+        },
+        {
+          "date": "2026-06-01",
+          "product_key": "SYN-HDD",
+          "actual": 197,
+          "predicted": 226.02554,
+          "baseline": 281
+        },
+        {
+          "date": "2026-06-01",
+          "product_key": "SYN-MON",
+          "actual": 190,
+          "predicted": 185.63552,
+          "baseline": 236
+        },
+        {
+          "date": "2026-06-01",
+          "product_key": "SYN-NVR",
+          "actual": 78,
+          "predicted": 88.19486,
+          "baseline": 100
+        },
+        {
+          "date": "2026-06-01",
+          "product_key": "SYN-PRN",
+          "actual": 59,
+          "predicted": 57.35924,
+          "baseline": 60
+        },
+        {
+          "date": "2026-06-01",
+          "product_key": "SYN-TON",
+          "actual": 236,
+          "predicted": 231.55731,
+          "baseline": 283
+        },
+        {
+          "date": "2026-07-01",
+          "product_key": "SYN-CAM",
+          "actual": 398,
+          "predicted": 372.37276,
+          "baseline": 433
+        },
+        {
+          "date": "2026-07-01",
+          "product_key": "SYN-HDD",
+          "actual": 201,
+          "predicted": 188.82935,
+          "baseline": 197
+        },
+        {
+          "date": "2026-07-01",
+          "product_key": "SYN-MON",
+          "actual": 181,
+          "predicted": 166.28118,
+          "baseline": 190
+        },
+        {
+          "date": "2026-07-01",
+          "product_key": "SYN-NVR",
+          "actual": 79,
+          "predicted": 79.63047,
+          "baseline": 78
+        },
+        {
+          "date": "2026-07-01",
+          "product_key": "SYN-PRN",
+          "actual": 46,
+          "predicted": 58.58354,
+          "baseline": 59
+        },
+        {
+          "date": "2026-07-01",
+          "product_key": "SYN-TON",
+          "actual": 199,
+          "predicted": 222.33768,
+          "baseline": 236
+        },
+        {
+          "date": "2026-08-01",
+          "product_key": "SYN-CAM",
+          "actual": 325,
+          "predicted": 343.24586,
+          "baseline": 398
+        },
+        {
+          "date": "2026-08-01",
+          "product_key": "SYN-HDD",
+          "actual": 192,
+          "predicted": 178.2571,
+          "baseline": 201
+        },
+        {
+          "date": "2026-08-01",
+          "product_key": "SYN-MON",
+          "actual": 146,
+          "predicted": 146.63015,
+          "baseline": 181
+        },
+        {
+          "date": "2026-08-01",
+          "product_key": "SYN-NVR",
+          "actual": 81,
+          "predicted": 77.0722,
+          "baseline": 79
+        },
+        {
+          "date": "2026-08-01",
+          "product_key": "SYN-PRN",
+          "actual": 53,
+          "predicted": 48.76473,
+          "baseline": 46
+        },
+        {
+          "date": "2026-08-01",
+          "product_key": "SYN-TON",
+          "actual": 208,
+          "predicted": 189.48631,
+          "baseline": 199
+        },
+        {
+          "date": "2026-09-01",
+          "product_key": "SYN-CAM",
+          "actual": 283,
+          "predicted": 314.17231,
+          "baseline": 325
+        },
+        {
+          "date": "2026-09-01",
+          "product_key": "SYN-HDD",
+          "actual": 165,
+          "predicted": 193.83643,
+          "baseline": 192
+        },
+        {
+          "date": "2026-09-01",
+          "product_key": "SYN-MON",
+          "actual": 124,
+          "predicted": 136.18876,
+          "baseline": 146
+        },
+        {
+          "date": "2026-09-01",
+          "product_key": "SYN-NVR",
+          "actual": 72,
+          "predicted": 85.76627,
+          "baseline": 81
+        },
+        {
+          "date": "2026-09-01",
+          "product_key": "SYN-PRN",
+          "actual": 55,
+          "predicted": 54.20408,
+          "baseline": 53
+        },
+        {
+          "date": "2026-09-01",
+          "product_key": "SYN-TON",
+          "actual": 206,
+          "predicted": 206.43618,
+          "baseline": 208
+        }
+      ],
+      "feature_names": [
+        "log_last",
+        "log_recent_mean",
+        "relative_trend",
+        "history_count",
+        "gap_months",
+        "month_sin",
+        "month_cos",
+        "log_quantity",
+        "toner",
+        "cable",
+        "camera",
+        "harddisk",
+        "monitor",
+        "rack",
+        "nvr",
+        "printer",
+        "other",
+        "log_capacity_gb",
+        "megapixels",
+        "ip",
+        "bullet",
+        "dome",
+        "cable_pack",
+        "cable_piece",
+        "cable_length_unspecified"
+      ],
+      "synthetic_demo_target": {
+        "maximum_wape": 0.4,
+        "passed": true
+      }
+    },
+    "SALE": {
+      "selected_algorithm": "random_forest",
+      "status": "SYNTHETIC_SIMULATION_ONLY",
+      "observations": 138,
+      "distinct_target_dates": 23,
+      "selection": "expanding_date_folds_before_final_test",
+      "test_start": "2026-06-01",
+      "validation_scores": {
+        "last_value": {
+          "rows": 60,
+          "mae": 121.69317,
+          "wape": 0.01356
+        },
+        "random_forest": {
+          "rows": 60,
+          "mae": 30.01764,
+          "wape": 0.00334
+        },
+        "gradient_boosting": {
+          "rows": 60,
+          "mae": 33.58025,
+          "wape": 0.00374
+        }
+      },
+      "test_metrics": {
+        "rows": 24,
+        "mae": 17.37254,
+        "wape": 0.00195
+      },
+      "baseline_metrics": {
+        "rows": 24,
+        "mae": 98.12833,
+        "wape": 0.01103
+      },
+      "baseline_beaten": true,
+      "quality_gate": {
+        "passed": true,
+        "maximum_wape": 0.5,
+        "minimum_test_rows": 3,
+        "must_not_underperform_baseline": true,
+        "scope": "Synthetic recorded-label gate only, not evidence of real-business forecasting"
+      },
+      "test_metrics_by_quantity_group": {},
+      "validation_relative_error": 0.00482,
+      "range_method": "80th percentile past validation relative error sensitivity; not calibrated coverage",
+      "test_predictions": [
+        {
+          "date": "2026-06-01",
+          "product_key": "SYN-CAM",
+          "actual": 3912.82,
+          "predicted": 3914.90401,
+          "baseline": 3987.6400000000003
+        },
+        {
+          "date": "2026-06-01",
+          "product_key": "SYN-HDD",
+          "actual": 5012.9400000000005,
+          "predicted": 5015.72086,
+          "baseline": 5108.53
+        },
+        {
+          "date": "2026-06-01",
+          "product_key": "SYN-MON",
+          "actual": 8696.1,
+          "predicted": 8701.11589,
+          "baseline": 8859.47
+        },
+        {
+          "date": "2026-06-01",
+          "product_key": "SYN-NVR",
+          "actual": 19375.510000000002,
+          "predicted": 19375.02636,
+          "baseline": 19720.51
+        },
+        {
+          "date": "2026-06-01",
+          "product_key": "SYN-PRN",
+          "actual": 15878.52,
+          "predicted": 15860.30831,
+          "baseline": 16142.8
+        },
+        {
+          "date": "2026-06-01",
+          "product_key": "SYN-TON",
+          "actual": 1249.1399999999999,
+          "predicted": 1249.36265,
+          "baseline": 1272.41
+        },
+        {
+          "date": "2026-07-01",
+          "product_key": "SYN-CAM",
+          "actual": 3843.7400000000002,
+          "predicted": 3850.18896,
+          "baseline": 3912.82
+        },
+        {
+          "date": "2026-07-01",
+          "product_key": "SYN-HDD",
+          "actual": 4929.44,
+          "predicted": 4933.63044,
+          "baseline": 5012.9400000000005
+        },
+        {
+          "date": "2026-07-01",
+          "product_key": "SYN-MON",
+          "actual": 8536.92,
+          "predicted": 8561.95119,
+          "baseline": 8696.1
+        },
+        {
+          "date": "2026-07-01",
+          "product_key": "SYN-NVR",
+          "actual": 19108.35,
+          "predicted": 19077.44783,
+          "baseline": 19375.510000000002
+        },
+        {
+          "date": "2026-07-01",
+          "product_key": "SYN-PRN",
+          "actual": 15687.509999999998,
+          "predicted": 15635.71247,
+          "baseline": 15878.52
+        },
+        {
+          "date": "2026-07-01",
+          "product_key": "SYN-TON",
+          "actual": 1229.96,
+          "predicted": 1229.35473,
+          "baseline": 1249.1399999999999
+        },
+        {
+          "date": "2026-08-01",
+          "product_key": "SYN-CAM",
+          "actual": 3801.9,
+          "predicted": 3806.85703,
+          "baseline": 3843.7400000000002
+        },
+        {
+          "date": "2026-08-01",
+          "product_key": "SYN-HDD",
+          "actual": 4884.099999999999,
+          "predicted": 4884.749,
+          "baseline": 4929.44
+        },
+        {
+          "date": "2026-08-01",
+          "product_key": "SYN-MON",
+          "actual": 8431.39,
+          "predicted": 8455.21691,
+          "baseline": 8536.92
+        },
+        {
+          "date": "2026-08-01",
+          "product_key": "SYN-NVR",
+          "actual": 19004.5,
+          "predicted": 18964.13401,
+          "baseline": 19108.35
+        },
+        {
+          "date": "2026-08-01",
+          "product_key": "SYN-PRN",
+          "actual": 15632.27,
+          "predicted": 15570.42944,
+          "baseline": 15687.509999999998
+        },
+        {
+          "date": "2026-08-01",
+          "product_key": "SYN-TON",
+          "actual": 1220.91,
+          "predicted": 1220.25399,
+          "baseline": 1229.96
+        },
+        {
+          "date": "2026-09-01",
+          "product_key": "SYN-CAM",
+          "actual": 3800.9100000000003,
+          "predicted": 3806.41378,
+          "baseline": 3801.9
+        },
+        {
+          "date": "2026-09-01",
+          "product_key": "SYN-HDD",
+          "actual": 4892.25,
+          "predicted": 4893.75953,
+          "baseline": 4884.099999999999
+        },
+        {
+          "date": "2026-09-01",
+          "product_key": "SYN-MON",
+          "actual": 8413.16,
+          "predicted": 8441.00911,
+          "baseline": 8431.39
+        },
+        {
+          "date": "2026-09-01",
+          "product_key": "SYN-NVR",
+          "actual": 19104.96,
+          "predicted": 19063.84876,
+          "baseline": 19004.5
+        },
+        {
+          "date": "2026-09-01",
+          "product_key": "SYN-PRN",
+          "actual": 15738.9,
+          "predicted": 15678.69773,
+          "baseline": 15632.27
+        },
+        {
+          "date": "2026-09-01",
+          "product_key": "SYN-TON",
+          "actual": 1225.24,
+          "predicted": 1224.54481,
+          "baseline": 1220.91
+        }
+      ],
+      "feature_names": [
+        "log_last",
+        "log_recent_mean",
+        "relative_trend",
+        "history_count",
+        "gap_months",
+        "month_sin",
+        "month_cos",
+        "log_quantity",
+        "toner",
+        "cable",
+        "camera",
+        "harddisk",
+        "monitor",
+        "rack",
+        "nvr",
+        "printer",
+        "other",
+        "log_capacity_gb",
+        "megapixels",
+        "ip",
+        "bullet",
+        "dome",
+        "cable_pack",
+        "cable_piece",
+        "cable_length_unspecified"
+      ],
+      "synthetic_demo_target": {
+        "maximum_wape": 0.4,
+        "passed": true
+      }
+    },
+    "PURCHASE": {
+      "selected_algorithm": "random_forest",
+      "status": "SYNTHETIC_SIMULATION_ONLY",
+      "observations": 138,
+      "distinct_target_dates": 23,
+      "selection": "expanding_date_folds_before_final_test",
+      "test_start": "2026-06-01",
+      "validation_scores": {
+        "last_value": {
+          "rows": 60,
+          "mae": 50.58933,
+          "wape": 0.00734
+        },
+        "random_forest": {
+          "rows": 60,
+          "mae": 23.06223,
+          "wape": 0.00334
+        },
+        "gradient_boosting": {
+          "rows": 60,
+          "mae": 27.04177,
+          "wape": 0.00392
+        }
+      },
+      "test_metrics": {
+        "rows": 24,
+        "mae": 16.82255,
+        "wape": 0.00242
+      },
+      "baseline_metrics": {
+        "rows": 24,
+        "mae": 31.01625,
+        "wape": 0.00446
+      },
+      "baseline_beaten": true,
+      "quality_gate": {
+        "passed": true,
+        "maximum_wape": 0.5,
+        "minimum_test_rows": 3,
+        "must_not_underperform_baseline": true,
+        "scope": "Synthetic recorded-label gate only, not evidence of real-business forecasting"
+      },
+      "test_metrics_by_quantity_group": {},
+      "validation_relative_error": 0.00439,
+      "range_method": "80th percentile past validation relative error sensitivity; not calibrated coverage",
+      "test_predictions": [
+        {
+          "date": "2026-06-01",
+          "product_key": "SYN-CAM",
+          "actual": 3012.87,
+          "predicted": 3014.98878,
+          "baseline": 3030.6099999999997
+        },
+        {
+          "date": "2026-06-01",
+          "product_key": "SYN-HDD",
+          "actual": 3859.96,
+          "predicted": 3862.40122,
+          "baseline": 3882.48
+        },
+        {
+          "date": "2026-06-01",
+          "product_key": "SYN-MON",
+          "actual": 6696.0,
+          "predicted": 6698.75575,
+          "baseline": 6733.2
+        },
+        {
+          "date": "2026-06-01",
+          "product_key": "SYN-NVR",
+          "actual": 14919.14,
+          "predicted": 14920.66828,
+          "baseline": 14987.59
+        },
+        {
+          "date": "2026-06-01",
+          "product_key": "SYN-PRN",
+          "actual": 12226.46,
+          "predicted": 12217.72644,
+          "baseline": 12268.529999999999
+        },
+        {
+          "date": "2026-06-01",
+          "product_key": "SYN-TON",
+          "actual": 961.8400000000001,
+          "predicted": 962.43526,
+          "baseline": 967.0299999999999
+        },
+        {
+          "date": "2026-07-01",
+          "product_key": "SYN-CAM",
+          "actual": 2998.12,
+          "predicted": 3001.53643,
+          "baseline": 3012.87
+        },
+        {
+          "date": "2026-07-01",
+          "product_key": "SYN-HDD",
+          "actual": 3844.96,
+          "predicted": 3845.44949,
+          "baseline": 3859.96
+        },
+        {
+          "date": "2026-07-01",
+          "product_key": "SYN-MON",
+          "actual": 6658.8,
+          "predicted": 6670.62039,
+          "baseline": 6696.0
+        },
+        {
+          "date": "2026-07-01",
+          "product_key": "SYN-NVR",
+          "actual": 14904.51,
+          "predicted": 14866.23226,
+          "baseline": 14919.14
+        },
+        {
+          "date": "2026-07-01",
+          "product_key": "SYN-PRN",
+          "actual": 12236.26,
+          "predicted": 12179.94684,
+          "baseline": 12226.46
+        },
+        {
+          "date": "2026-07-01",
+          "product_key": "SYN-TON",
+          "actual": 959.37,
+          "predicted": 958.24239,
+          "baseline": 961.8400000000001
+        },
+        {
+          "date": "2026-08-01",
+          "product_key": "SYN-CAM",
+          "actual": 2993.31,
+          "predicted": 2996.0199,
+          "baseline": 2998.12
+        },
+        {
+          "date": "2026-08-01",
+          "product_key": "SYN-HDD",
+          "actual": 3845.35,
+          "predicted": 3844.69994,
+          "baseline": 3844.96
+        },
+        {
+          "date": "2026-08-01",
+          "product_key": "SYN-MON",
+          "actual": 6638.21,
+          "predicted": 6656.35219,
+          "baseline": 6658.8
+        },
+        {
+          "date": "2026-08-01",
+          "product_key": "SYN-NVR",
+          "actual": 14962.630000000001,
+          "predicted": 14910.63521,
+          "baseline": 14904.51
+        },
+        {
+          "date": "2026-08-01",
+          "product_key": "SYN-PRN",
+          "actual": 12307.61,
+          "predicted": 12245.37407,
+          "baseline": 12236.26
+        },
+        {
+          "date": "2026-08-01",
+          "product_key": "SYN-TON",
+          "actual": 961.25,
+          "predicted": 959.72152,
+          "baseline": 959.37
+        },
+        {
+          "date": "2026-09-01",
+          "product_key": "SYN-CAM",
+          "actual": 3002.72,
+          "predicted": 3005.31403,
+          "baseline": 2993.31
+        },
+        {
+          "date": "2026-09-01",
+          "product_key": "SYN-HDD",
+          "actual": 3864.88,
+          "predicted": 3863.19396,
+          "baseline": 3845.35
+        },
+        {
+          "date": "2026-09-01",
+          "product_key": "SYN-MON",
+          "actual": 6646.4,
+          "predicted": 6665.37424,
+          "baseline": 6638.21
+        },
+        {
+          "date": "2026-09-01",
+          "product_key": "SYN-NVR",
+          "actual": 15092.92,
+          "predicted": 15042.62938,
+          "baseline": 14962.630000000001
+        },
+        {
+          "date": "2026-09-01",
+          "product_key": "SYN-PRN",
+          "actual": 12433.73,
+          "predicted": 12371.69733,
+          "baseline": 12307.61
+        },
+        {
+          "date": "2026-09-01",
+          "product_key": "SYN-TON",
+          "actual": 967.9399999999999,
+          "predicted": 966.65552,
+          "baseline": 961.25
+        }
+      ],
+      "feature_names": [
+        "log_last",
+        "log_recent_mean",
+        "relative_trend",
+        "history_count",
+        "gap_months",
+        "month_sin",
+        "month_cos",
+        "log_quantity",
+        "toner",
+        "cable",
+        "camera",
+        "harddisk",
+        "monitor",
+        "rack",
+        "nvr",
+        "printer",
+        "other",
+        "log_capacity_gb",
+        "megapixels",
+        "ip",
+        "bullet",
+        "dome",
+        "cable_pack",
+        "cable_piece",
+        "cable_length_unspecified"
+      ],
+      "synthetic_demo_target": {
+        "maximum_wape": 0.4,
+        "passed": true
+      }
+    }
+  },
+  "source_hashes": {
+    "purchase/purchase-lines.csv": "f24a4c5733b4e0e543c11a634296791d079b07f565b4c4e2e7e5c72888bae094",
+    "sales/sales-lines.csv": "f51b60104e8b9d44feea28c8baf3fb91bd64aff8d009c51506ff20215b79a870"
+  },
+  "trainer_sha256": "e450b6203aa94e4e2809d20eea36273667c761f650cc94c413577cea255fbd78",
+  "environment": {
+    "python": "3.12.4",
+    "sklearn": "1.9.1",
+    "numpy": "2.5.4"
+  },
+  "safety": {
+    "live_business_records_changed": false,
+    "real_model_artifacts_unchanged": true,
+    "synthetic_training_never_merged_with_real": true,
+    "stock_nonnegative": true
+  },
+  "conditional_next_month_totals": {
+    "revenue": 6108349.22,
+    "gross_profit": 1301384.71
+  },
+  "limitations": [
+    "Synthetic patterns are simpler than real operations.",
+    "These metrics do not establish real business accuracy.",
+    "Price tests use monthly weighted rates; the earlier real-data price evaluation used transaction dates, so the error values are not directly comparable.",
+    "No calibrated confidence intervals or causal optimal-pricing model.",
+    "No AWS deployment, OCR validation or live app mode added by this run."
+  ],
+  "public_release_note": "Public source snapshot: CSV byte hashes refreshed after removing encoding BOM; numeric dataset values and measured model scores unchanged."
+}

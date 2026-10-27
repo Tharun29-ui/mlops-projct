@@ -1,0 +1,4 @@
+# Offline training only; these are not Lambda runtime dependencies.
+scikit-learn==1.9.1
+numpy==2.5.4
+reportlab==5.1.0

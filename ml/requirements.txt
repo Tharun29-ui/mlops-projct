@@ -1,0 +1,4 @@
+pandas>=2.2,<4.0
+sagemaker>=2.220,<3.0
+mlflow==2.16.2
+sagemaker-mlflow>=0.1.0

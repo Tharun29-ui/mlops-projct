@@ -1,0 +1,5 @@
+* text=auto eol=lf
+# Preserve the recorded byte hashes of the synthetic experiment artifacts.
+ml/datasets/synthetic-model-demo/** -text
+*.pdf -text
+*.png -text
