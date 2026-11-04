@@ -1,0 +1,32 @@
+.payments-workspace { display: grid; gap: 20px; }
+.payments-workspace .panel-heading { align-items: center; gap: 16px; flex-wrap: wrap; }
+.party-summary-grid, .party-contact-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(210px,1fr)); gap: 14px; }
+.party-summary { background: #f0f6f2; border: 1px solid #dce8df; border-radius: 14px; padding: 18px; display: grid; gap: 8px; }
+.party-summary > span, .party-summary small, .party-help { color: #61746a; font-size: 13px; line-height: 1.6; }
+.party-summary strong { font-size: 19px; color: #204d37; }
+.party-form { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.party-form label, .party-payment-form label, .physical-count form > label { display: grid; gap: 6px; font-size: 13px; color: #3d5447; }
+.party-form .party-help { grid-column: 1 / -1; margin: 0; }
+.party-form button { justify-self: start; }
+.payments-workspace input, .payments-workspace select, .payments-workspace textarea, .physical-count input[type=number] { font: inherit; border: 1px solid #d5e1d9; background: white; border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.party-search { display: flex; gap: 12px; margin-bottom: 18px; }
+.party-search input { flex: 1; }
+.party-contact { text-align: left; display: grid; align-content: start; gap: 9px; padding: 18px; border-radius: 12px; background: white; border: 1px solid #dce6df; color: #2c4938; cursor: pointer; overflow-wrap: anywhere; }
+.party-contact:hover, .party-contact.selected { border-color: #317452; background: #f0f7f2; }
+.party-contact.selected { box-shadow: inset 0 0 0 1px #317452; }
+.party-contact strong { font-size: 15px; }
+.party-contact small { color: #738278; line-height: 1.5; }
+.party-kind { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #588266; }
+.party-payment-form { display: grid; grid-template-columns: repeat(2,minmax(110px,1fr)); gap: 9px; min-width: 280px; max-width: 410px; }
+.party-payment-form input, .party-payment-form select { width: 100%; box-sizing: border-box; }
+.party-payment-form button { justify-self: start; }
+.party-invoices td { vertical-align: top; }
+.party-invoices td > small { display: block; margin-top: 5px; }
+.party-history-title { margin-top: 28px; }
+.physical-count { margin-top: 14px; padding-top: 14px; border-top: 1px solid #dce6df; }
+.physical-count summary { color: #256142; cursor: pointer; font-weight: 600; }
+.physical-count p { font-size: 13px; line-height: 1.6; }
+.physical-count form { display: grid; gap: 10px; }
+.physical-count .stock-confirm { display: flex; align-items: flex-start; gap: 8px; }
+.inventory-count-note { display: block; margin-top: 5px; font-size: 11px; color: #748278; }
+@media(max-width:720px) { .party-form { grid-template-columns: 1fr; } .party-search { flex-direction: column; } .party-summary-grid { grid-template-columns: 1fr; } }

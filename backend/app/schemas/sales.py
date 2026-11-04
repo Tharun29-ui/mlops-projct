@@ -30,3 +30,4 @@ class PaymentInput(BaseModel):
     amount: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
     method: str | None = Field(default=None, max_length=40)
     reference: str | None = Field(default=None, max_length=160)
+    payment_date: date | None = None

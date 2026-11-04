@@ -44,3 +44,9 @@ infra/cdk.context.json
 *.db
 *.sqlite*
 *.log
+
+# Additional local caches and presentation evidence
+/forpresentataion/
+/artifacts/
+/docs/private/
+*.pyo

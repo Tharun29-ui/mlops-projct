@@ -1,19 +1,14 @@
 # Public release privacy policy
 
-This clean source snapshot excludes original invoices and OCR extracts, real
-transaction datasets, private trained bundles, screenshots, reports with student
-identities, backups, local databases, environment files, AWS output/context files,
-login responses, credentials, certificates, dependency caches and previous history.
+This source release excludes real invoices, OCR extracts, real transaction datasets,
+private runtime ledgers, screenshots, student records, backups, local databases,
+environment files, AWS output/context files, credentials and certificates.
 
-All included sample invoices, transaction CSVs and model artifacts under the
-synthetic-model-demo folder are explicitly fictional. Business identifiers embedded
-in examples were replaced with generic placeholders. Configure real business and
-cloud values using local environment files or managed secrets, never source code.
+The monthly-profit seed under ml/datasets/synthetic-model-demo has an empty real
+branch and only explicitly generated synthetic sales and purchase bills. Older
+synthetic examples use generic business placeholders. Never combine simulated
+evaluation with real-business accuracy claims.
 
-The models and software remain a project demonstration, with real demand forecasting
-experimental. No production secrets or private real-data evidence are needed to run
-the isolated synthetic demonstration.
-
-Historical one-off live audit, reset and repair utilities are excluded because they
-reference private deployment snapshots and are not application runtime code.
-Some source-checking scripts and tests require your own private datasets.
+Production resource identifiers and business contact details in source examples
+are replaced with placeholders. Configure actual values locally or in managed secrets.
+Historical one-off deployment, reset and data-repair scripts are not distributed.

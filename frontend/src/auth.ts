@@ -3,6 +3,8 @@ const clientId = import.meta.env.VITE_COGNITO_CLIENT_ID;
 const redirectUri = import.meta.env.VITE_COGNITO_REDIRECT_URI || `${window.location.origin}/auth/callback`;
 const logoutUri = import.meta.env.VITE_COGNITO_LOGOUT_URI || window.location.origin;
 const ACCESS_TOKEN_KEY = "abos_access_token";
+const REFRESH_TOKEN_KEY = "abos_refresh_token";
+let refreshInFlight: Promise<string | null> | null = null;
 const VERIFIER_KEY = "abos_pkce_verifier";
 const STATE_KEY = "abos_oauth_state";
 
@@ -63,11 +65,37 @@ export async function completeLogin(): Promise<string | null> {
     throw new Error(tokens.error_description || "Could not complete sign-in.");
   }
   sessionStorage.setItem(ACCESS_TOKEN_KEY, tokens.access_token);
-  if (tokens.refresh_token) sessionStorage.setItem("abos_refresh_token", tokens.refresh_token);
+  if (tokens.refresh_token) sessionStorage.setItem(REFRESH_TOKEN_KEY, tokens.refresh_token);
   sessionStorage.removeItem(VERIFIER_KEY);
   sessionStorage.removeItem(STATE_KEY);
   window.history.replaceState({}, document.title, window.location.pathname);
   return tokens.access_token as string;
+}
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (refreshInFlight) return refreshInFlight;
+  const refreshToken = sessionStorage.getItem(REFRESH_TOKEN_KEY);
+  if (!domain || !clientId || !refreshToken) return null;
+  refreshInFlight = (async () => {
+    try {
+      const body = new URLSearchParams({ grant_type: "refresh_token", client_id: clientId, refresh_token: refreshToken });
+      const refreshed = await fetch(`${domain}/oauth2/token`, {
+        method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body,
+      });
+      const tokens = await refreshed.json();
+      // A response from a previous session must never restore a signed-out session.
+      if (sessionStorage.getItem(REFRESH_TOKEN_KEY) !== refreshToken) return null;
+      if (!refreshed.ok || !tokens.access_token) return null;
+      sessionStorage.setItem(ACCESS_TOKEN_KEY, tokens.access_token);
+      if (tokens.refresh_token) sessionStorage.setItem(REFRESH_TOKEN_KEY, tokens.refresh_token);
+      return tokens.access_token as string;
+    } catch {
+      // Preserve the original 401 so the caller can offer sign-in again.
+      return null;
+    }
+  })();
+  try { return await refreshInFlight; }
+  finally { refreshInFlight = null; }
 }
 
 export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
@@ -76,25 +104,20 @@ export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {})
     if (authConfigured && token) headers.set("Authorization", `Bearer ${token}`);
     return fetch(input, { ...init, headers });
   };
-  let response = await send(accessToken());
-  const refreshToken = sessionStorage.getItem("abos_refresh_token");
-  if (authConfigured && response.status === 401 && domain && clientId && refreshToken) {
-    const body = new URLSearchParams({ grant_type: "refresh_token", client_id: clientId, refresh_token: refreshToken });
-    const refreshed = await fetch(`${domain}/oauth2/token`, {
-      method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body,
-    });
-    const tokens = await refreshed.json();
-    if (refreshed.ok && tokens.access_token) {
-      sessionStorage.setItem(ACCESS_TOKEN_KEY, tokens.access_token);
-      response = await send(tokens.access_token as string);
-    }
+  const originalToken = accessToken();
+  let response = await send(originalToken);
+  if (authConfigured && response.status === 401) {
+    // Another request may already have refreshed while this response was in flight.
+    const currentToken = accessToken();
+    const token = currentToken && currentToken !== originalToken ? currentToken : await refreshAccessToken();
+    if (token) response = await send(token);
   }
   return response;
 }
 
 export function signOut(): void {
   sessionStorage.removeItem(ACCESS_TOKEN_KEY);
-  sessionStorage.removeItem("abos_refresh_token");
+  sessionStorage.removeItem(REFRESH_TOKEN_KEY);
   if (authConfigured && domain && clientId) {
     const query = new URLSearchParams({ client_id: clientId, logout_uri: logoutUri });
     window.location.assign(`${domain}/logout?${query.toString()}`);

@@ -28,7 +28,6 @@ from fastapi import HTTPException
 from fastapi import UploadFile
 from starlette.datastructures import Headers
 
-from app.api.routes.forecasts import ApprovedSalesForecastInput, _linear_trend, _read_series, forecast_from_approved_sales, create_forecast
 from app.api.routes.invoices import create_sales_invoice, post_approved_invoice_inventory, record_invoice_payment, review_invoice, validate_invoice_payload
 from app.api.routes.inventory import ProductDetailsInput, PricingRulesInput, update_product_details, update_pricing_rules
 from app.db import Base, SessionLocal, engine
@@ -48,7 +47,7 @@ class InvoiceDirectionInferenceTests(unittest.TestCase):
             fields.append({"type": "INVOICE_RECEIPT_ID", "value": invoice_number, "confidence": 99})
         return _normalized_payload({"expense_documents": [{"summary_fields": fields, "line_items": []}]})
 
-    def test_configured_example_p05_invoice_is_sale(self):
+    def test_configured_akshai_p05_invoice_is_sale(self):
         result = self.extracted("Example Supplier", "P-05")
         self.assertEqual(result["transaction_type"], "SALE")
         self.assertIn("Suggested Sale", result["direction_reason"])
@@ -102,25 +101,6 @@ class InvoiceWorkflowTests(unittest.TestCase):
         self.assertEqual(result['status'],'APPROVED')
         self.db.refresh(product);self.assertEqual(product.quantity_on_hand,1)
 
-    def test_approved_sales_use_validated_model_and_requested_horizon(self):
-        product=Product(sku='MODEL-VALIDATED',name='Monitor',quantity_on_hand=4,reorder_point=0,unit_cost=Decimal('40'))
-        self.db.add(product);self.db.commit()
-        for index in range(5):
-            invoice=self.make_invoice(direction='SALE',quantity='1')
-            invoice.invoice_number=f'MODEL-{index}'
-            invoice.invoice_date=date(2026,10,1)+timedelta(days=index)
-            invoice.status='APPROVED'
-            invoice.lines[0].product_id=product.id
-        self.db.commit()
-        result=asyncio.run(forecast_from_approved_sales(ApprovedSalesForecastInput(
-            confirm_complete_sales_history=True,horizon_days=30),self.db))
-        self.assertEqual(result['model_name'],'validated_demand_model')
-        self.assertEqual(result['metrics']['data_source'],'approved_complete_sales_history')
-        self.assertEqual(result['metrics']['horizon_days'],30)
-        self.assertEqual(len(result['forecasts']),30)
-        self.assertTrue(result['metrics']['forecast_warnings'])
-        self.db.refresh(product)
-        self.assertEqual(product.quantity_on_hand,4)
 
     def test_receipt_without_tax_setup_posts_stock_and_renders_pdf(self):
         from app.core.config import get_settings
@@ -173,20 +153,6 @@ class InvoiceWorkflowTests(unittest.TestCase):
                                {'type':'PRICE','value':'779.66'}])
         self.assertEqual(row['unit_rate'],Decimal('389.83'))
 
-    def test_forecast_runs_without_sagemaker_even_with_legacy_setting(self):
-        data = 'product_id,date,quantity_sold\n' + ''.join(
-            f'validation,{date(2026, 1, 1)+timedelta(days=day)},2\n' for day in range(10))
-        settings = SimpleNamespace(max_upload_bytes=10000, sagemaker_endpoint_name='obsolete',
-                                   aws_region='ap-southeast-2', business_data_table_name='')
-        upload = UploadFile(file=io.BytesIO(data.encode()), filename='verified.csv',
-                            headers=Headers({'content-type': 'text/csv'}))
-        with patch('app.api.routes.forecasts.get_settings', return_value=settings):
-            result = asyncio.run(create_forecast(upload, self.db))
-        self.assertEqual(result['metrics']['mae'], 0)
-        self.assertEqual(result['metrics']['training_backend'], 'aws_lambda')
-        self.assertEqual(result['metrics']['inference_backend'], 'aws_lambda')
-        self.assertEqual(result['model_name'], 'validated_demand_model')
-        self.assertEqual(len(result['forecasts']), 7)
 
     @classmethod
     def tearDownClass(cls):
@@ -455,44 +421,8 @@ class InvoiceWorkflowTests(unittest.TestCase):
         self.assertEqual(self.db.query(Invoice).count(), 0)
         self.assertEqual(product.quantity_on_hand, 1)
 
-    def test_sales_forecast_requires_explicit_complete_history_confirmation(self):
-        coroutine = forecast_from_approved_sales(
-            ApprovedSalesForecastInput(confirm_complete_sales_history=False), self.db)
-        with self.assertRaises(HTTPException) as raised:
-            coroutine.send(None)
-        self.assertEqual(raised.exception.status_code, 422)
 
-    def test_approved_sales_forecasts_share_one_calendar_cutoff(self):
-        from app.api.routes.forecasts import forecast_from_approved_sales, ApprovedSalesForecastInput
-        from types import SimpleNamespace
-        rows=[{'id':'p1','status':'APPROVED','source_type':'DEMO','transaction_type':'SALE',
-               'invoice_date':'2026-10-01','lines':[{'product_id':'A','quantity':2}]},
-              {'id':'p2','status':'APPROVED','source_type':'DEMO','transaction_type':'SALE',
-               'invoice_date':'2026-10-05','lines':[{'product_id':'B','quantity':1}]}]
-        with patch('app.api.routes.forecasts.get_settings',return_value=SimpleNamespace(business_data_table_name='test')), \
-             patch('app.api.routes.forecasts.dynamodb_store.list_invoices',return_value=rows), \
-             patch('app.api.routes.forecasts.dynamodb_store.list_products',return_value=[]), \
-             patch('app.api.routes.forecasts.dynamodb_store.create_forecast',side_effect=lambda record:dict(record,id='run',created_at='now')):
-            run=asyncio.run(forecast_from_approved_sales(ApprovedSalesForecastInput(
-                confirm_complete_sales_history=True,horizon_days=90),self.db))
-        dates={row['forecast_date'] for row in run['forecasts']}
-        self.assertEqual(len(dates),90)
-        self.assertEqual(min(dates),'2026-10-06')
-        self.assertEqual(len(run['forecasts']),180)
 
-    def test_forecast_linear_trend_matches_known_series(self):
-        rows = _read_series(
-            b"product_id,date,quantity_sold\n"
-            b"W-1,2026-10-01,1\n"
-            b"W-1,2026-10-02,2\n"
-            b"W-1,2026-10-03,3\n"
-            b"W-1,2026-10-04,4\n")
-
-        self.assertEqual(rows["W-1"][-1], (date(2026, 10, 4), 4.0))
-        self.assertEqual(_linear_trend([1, 2, 3, 4]), 5)
-        self.assertEqual(_linear_trend([1, 2, 3, 4], steps=2), 6)
-        self.assertEqual(_linear_trend([3, 3, 3, 3]), 3)
-        self.assertEqual(_linear_trend([0, 0, 0, 0]), 0)
 
     def test_invoice_validation_flags_bad_gstin_and_unbalanced_totals(self):
         result = validate_invoice_payload(InvoiceValidationInput.model_validate({

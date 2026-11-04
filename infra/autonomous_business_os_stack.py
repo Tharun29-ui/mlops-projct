@@ -418,6 +418,14 @@ class AutonomousBusinessOsStack(Stack):
         )
         invoice_bucket.grant_read_write(api_function, "incoming/*")
         invoice_bucket.grant_read(api_function, "processed/*")
+        # Source-reviewed imports retain originals outside the upload trigger prefix.
+        api_function.add_to_role_policy(
+            iam.PolicyStatement(
+                sid="ReadReviewedInvoiceDocuments",
+                actions=["s3:GetObject"],
+                resources=[invoice_bucket.arn_for_objects("reviewed-real/*")],
+            )
+        )
         job_table.grant_read_data(api_function)
         start_worker.add_event_source(event_sources.SqsEventSource(invoice_queue, batch_size=1))
         invoice_bucket.grant_read(start_worker, "incoming/*")

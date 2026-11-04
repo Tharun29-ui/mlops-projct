@@ -5,7 +5,7 @@ from app.api.routes.health import router as health_router
 from app.api.routes.invoices import router as invoices_router
 from app.api.routes.inventory import router as inventory_router
 from app.api.routes.forecasts import router as forecasts_router
-from app.api.routes.intelligence import router as intelligence_router
+from app.api.routes.parties import router as parties_router
 from app.core.config import get_cors_allowed_origins, get_settings
 
 settings = get_settings()
@@ -22,7 +22,7 @@ app.include_router(health_router, prefix=settings.api_prefix)
 app.include_router(invoices_router, prefix=settings.api_prefix)
 app.include_router(inventory_router, prefix=settings.api_prefix)
 app.include_router(forecasts_router, prefix=settings.api_prefix)
-app.include_router(intelligence_router, prefix=settings.api_prefix)
+app.include_router(parties_router, prefix=settings.api_prefix)
 
 
 @app.get("/")

@@ -15,6 +15,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.services.analysis_sources import is_synthetic_invoice
 from app.db import get_db
 from app.models import AppSetting, Invoice, InvoiceLine, Product, SerialAsset, StockMovement
 from app.services.textract_results import sync_textract_invoice, sync_textract_results
@@ -357,7 +358,7 @@ async def upload_invoice(file: UploadFile = File(...), allow_duplicate: bool = Q
         local_path.write_bytes(content)
         stored_path = str(local_path)
     record = {"filename": Path(file.filename or f"invoice{suffix}").name,
-              "source_type": "DEMO" if demo else "UPLOAD",
+              "source_type": "DEMO" if demo or is_synthetic_invoice({"filename": file.filename}) else "UPLOAD",
               "content_type": file.content_type or "application/octet-stream",
               "stored_path": str(stored_path), "vendor_name": None, "receiver_name": None,
               "direction_reason": (f"Upload direction selected as {transaction_type}; verify before approval."
@@ -406,7 +407,8 @@ def record_invoice_payment(invoice_id: str, payload: PaymentInput,
     if get_settings().business_data_table_name:
         try:
             invoice = dynamodb_store.record_invoice_payment(
-                invoice_id, payload.amount, method=payload.method, reference=payload.reference)
+                invoice_id, payload.amount, method=payload.method, reference=payload.reference,
+                payment_date=payload.payment_date.isoformat() if payload.payment_date else None)
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         if invoice is None:
@@ -430,6 +432,7 @@ def record_invoice_payment(invoice_id: str, payload: PaymentInput,
     history = list(invoice.payment_history or [])
     history.append({"amount": str(payload.amount), "method": payload.method,
                     "reference": payload.reference, "received_at": received_at,
+                    "payment_date": payload.payment_date.isoformat() if payload.payment_date else received_at[:10],
                     "recorded_at": received_at})
     invoice.amount_paid = updated
     invoice.payment_status = "PAID" if updated == invoice.grand_total else "PARTIAL"

@@ -1,110 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { buildMonthlyPlan } from "./forecastPlan";
 import ForecastWorkspace from "./ForecastWorkspace";
+import InventoryHsnEditor from "./InventoryHsnEditor";
+import PaymentsWorkspace, { PhysicalCount } from "./PaymentsWorkspace";
+import { productMatchesDescription } from "./productIdentity";
 import { apiFetch, authConfigured, beginLogin, completeLogin, signOut } from "./auth";
 
 const navItems = ["Overview", "Invoices", "Sales", "Inventory", "Forecasts", "Payments"];
 const API = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? "http://127.0.0.1:8000/api/v1" : "/api/v1");
-
-function CommercialModels() {
-  const [report, setReport] = useState<any>(null);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [search, setSearch] = useState("");
-  const [units, setUnits] = useState<Record<string, string>>({});
-  const load = async (dataset: boolean | "reviewed") => {
-    setBusy(true); setError("");
-    try {
-      const response = await apiFetch(`${API}/intelligence${dataset === "reviewed" ? "/reviewed-sample" : dataset ? "/dataset" : ""}`);
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.detail || "Model analysis failed");
-      setReport(dataset === "reviewed" ? result.commercial : result);
-    } catch (e) { setError(e instanceof Error ? e.message : "Model analysis failed"); }
-    finally { setBusy(false); }
-  };
-  const money = (v: any, currency = "INR") => v == null ? "Unavailable" : `${currency} ${Number(v).toFixed(2)}`;
-  const algorithm = (v: string) => (({last_observed_price: "Last observed price", supplier_last_price: "Supplier's last comparable price"} as Record<string, string>)[v] || v?.replaceAll("_", " ") || "More history needed");
-  const download = () => {
-    const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], {type: "application/json"}));
-    const link = document.createElement("a"); link.href = url; link.download = "commercial-model-results.json"; link.click(); URL.revokeObjectURL(url);
-  };
-  const products = (report?.products || []).filter((p: any) => `${p.product_name} ${p.product_id}`.toLowerCase().includes(search.toLowerCase()));
-  return <section className="panel commercial-workspace">
-    <div className="panel-heading"><div><h2>Choose which records to explore</h2><p>Compare purchase costs, choose a selling rate, and estimate gross profit.</p></div></div>
-    <div style={{display: "flex", gap: 8, flexWrap: "wrap"}}>
-      <button className="primary-button" disabled={busy} onClick={() => void load("reviewed")}>Reviewed real bills (10 + 10)</button>
-      <button className="select-button" disabled={busy} onClick={() => void load(false)}>My business records</button>
-      <button className="select-button" disabled={busy} onClick={() => void load(true)}>Explore supplied dataset</button>
-    </div>
-    {busy && <p role="status">Training and evaluating model candidates…</p>}{error && <p role="alert">{error}</p>}
-    {report && <>
-      <p><strong>{report.data_source === "reviewed_real_sample" ? "20 reviewed real bills — partial sample, not posted to stock" : report.data_source === "supplied_invoice_dataset" ? "Supplied invoice dataset — extracted, unverified labels" : report.data_source === "reviewed_demo_invoices" ? "Reviewed demo invoices — sample data only" : "Approved business records"}</strong></p>
-      {report.usable_price_rows !== undefined && <p>{report.source_documents} documents · {report.usable_price_rows} price observations · {report.synthetic_rows} synthetic rows. {report.test_note}</p>}
-      <div className="commercial-summary"><span><strong>{report.products.length}</strong> products to explore</span><p>Search below for purchase costs, suggested selling rates and profit examples. Limited history uses the last comparable price.</p></div>
-      <details className="commercial-diagnostics"><summary>Model accuracy & technical details</summary>
-      <div className="table-scroll"><table><thead><tr><th>MODEL</th><th>SELECTED METHOD</th><th>VALIDATION ROWS</th><th>TEST ROWS</th><th>TEST WAPE</th><th>STATUS</th></tr></thead><tbody>
-        {[["Purchase cost", report.shared_purchase_model], ["Selling price", report.shared_selling_price_model]].map(([name, raw]) => {
-          const m = raw as any;
-          return <tr key={String(name)}><td><strong>{String(name)}</strong></td><td>{algorithm(m?.selected_algorithm || m?.model?.algorithm)}</td>
-            <td>{m?.comparable_validation_rows ?? 0}</td><td>{m?.evaluated_known_product_rows ?? 0}</td>
-            <td>{m?.test_metrics?.wape == null ? "Not measurable" : `${(m.test_metrics.wape * 100).toFixed(2)}%`}</td>
-            <td>{m?.quality_gate === "passed_baseline_check" ? "Passed baseline comparison" : m?.status === "trained" ? "Limited evidence — reference only" : "More repeated history needed"}</td></tr>;
-        })}
-      </tbody></table></div>
-      <p className="muted-cell">Methods compete on earlier validation dates; final test dates are kept separate. Price changes are learned within the same product and unit. When regression does not validate better, the app uses the last comparable price. A low test-row count does not establish dependable accuracy.</p>
-      <details><summary>View model validation and baseline comparison</summary>
-        {[["Purchase cost", report.shared_purchase_model], ["Selling price", report.shared_selling_price_model]].map(([name, raw]) => {
-          const m = raw as any;
-          return <div key={String(name)}><h3>{String(name)}</h3><p>Test starts {m?.test_start || "not available"}. Unseen product rows excluded from test accuracy: {m?.unseen_product_test_rows ?? 0}. Last-price baseline WAPE: {m?.last_price_baseline_metrics?.wape == null ? "unavailable" : `${(m.last_price_baseline_metrics.wape * 100).toFixed(2)}%`}.</p>
-            <div className="table-scroll"><table><thead><tr><th>CANDIDATE</th><th>VALIDATION MAE</th><th>VALIDATION WAPE</th></tr></thead><tbody>{Object.entries(m?.validation_scores || {}).map(([method, metric]) => {const score = metric as any; return <tr key={method}><td>{algorithm(method)}</td><td>{score.mae}</td><td>{score.wape == null ? "unavailable" : `${(score.wape * 100).toFixed(2)}%`}</td></tr>;})}</tbody></table></div>
-          </div>;
-        })}
-      </details>
-      <button className="select-button" onClick={download}>Download trained artifacts and evaluation</button>
-      <p>Price estimates cover 30 days after the latest observed rate. Profit is a conditional calculation using cost, selling rate and units; it is not a learned profit or customer-conversion model.</p>
-      </details>
-      <label className="commercial-search">Find a product<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search product or SKU" style={{display: "block", width: "100%", margin: "8px 0 14px", padding: 10}}/></label>
-      <p className="muted-cell">{products.length} of {report.products.length} products</p>
-      <div className="table-scroll"><table><thead><tr><th>PRODUCT / UNIT</th><th>COST OUTLOOK</th><th>SELLING PRICE / FLOOR</th><th>PURCHASE ADVICE</th><th>GROSS PROFIT SCENARIO</th></tr></thead><tbody>
-        {products.map((p: any) => {
-          const key = `${p.product_id}-${p.unit}-${p.currency}`;
-          const q = Number(units[key] ?? p.planning_scenario?.assumed_units ?? "0");
-          const costEstimate = report.shared_purchase_model?.estimates?.find((x: any) => x.product_id === p.product_id && x.unit === p.unit);
-          const saleEstimate = report.shared_selling_price_model?.estimates?.find((x: any) => x.product_id === p.product_id && x.unit === p.unit);
-          const reference = report.shared_purchase_model?.quality_gate !== "passed_baseline_check";
-          const scenario = q >= 0 && p.current_unit_cost != null && p.selling_price.suggested != null ? q * (p.selling_price.suggested - p.current_unit_cost) : null;
-          return <tr key={key}><td><strong>{p.product_name || p.product_id}</strong><small style={{display: "block"}}>{p.unit} · {p.currency}</small></td>
-            <td>Last cost: {money(p.current_unit_cost, p.currency)}
-              {p.purchase_cost_model.status === "trained" ? <small style={{display: "block"}}>{algorithm(p.purchase_cost_model.model.algorithm)}: {money(p.purchase_cost_model.predicted_price, p.currency)}</small>
-              : costEstimate ? <small style={{display: "block"}}>{reference ? "Reference" : "Model outlook"}: {money(reference ? costEstimate.last_price : costEstimate.predicted_price, p.currency)} · {costEstimate.history_dates ?? 1} dated observations</small>
-              : <small style={{display: "block"}}>No comparable purchase history</small>}
-            </td>
-            <td><strong>{money(p.selling_price.suggested, p.currency)}</strong><small style={{display: "block"}}>Floor: {money(p.selling_price.floor, p.currency)}<br/>{report.data_source === "reviewed_real_sample" ? "Sample price reference" : p.selling_price.basis === "margin_scenario_rule" ? "Configured margin rule" : "Validated sale model with margin floor"}</small>
-              {report.data_source === "reviewed_real_sample" && <small style={{display:"block"}}>Sample analysis · no business margin settings applied</small>}
-              {saleEstimate && <small style={{display: "block"}}>Observed sales reference: {money(saleEstimate.last_price, p.currency)}</small>}
-            </td>
-            <td>{p.purchase_advisor.advice}{p.purchase_advisor.best_observed_supplier && <small style={{display: "block"}}>Lowest recorded comparable quote: {p.purchase_advisor.best_observed_supplier.party} · {money(p.purchase_advisor.best_observed_supplier.latest_price, p.currency)} · {p.purchase_advisor.best_observed_supplier.last_observed_date}</small>}<small style={{display: "block"}}>Reorder shortfall: {p.purchase_advisor.reorder_quantity ?? "Complete demand and stock history needed"}</small></td>
-            <td>{p.profit_projection && <p>Matched demand scenario: {money(p.profit_projection.gross_profit, p.currency)}</p>}<label>Scenario units<input type="number" min="0" step="1" value={units[key] ?? p.planning_scenario?.assumed_units ?? ""} placeholder="Enter planning quantity" onChange={(event) => setUnits((current) => ({...current, [key]: event.target.value}))}/></label><small style={{display: "block"}}>{scenario == null ? "Comparable cost and selling price needed" : `Gross profit: ${money(scenario, p.currency)}`}<br/>{p.planning_scenario && !units[key] && "Uses the last purchase quantity as a planning assumption. "}Before tax, expenses and returns.</small></td>
-          </tr>;
-        })}
-        {products.length === 0 && <tr><td colSpan={5}>No matching comparable product history.</td></tr>}
-      </tbody></table></div>
-    </>}
-  </section>;
-}
-
-function ForecastPlan({forecast, inventory, policy}: {forecast: any; inventory: any[]; policy: any}) {
-  const rows = buildMonthlyPlan(forecast.forecasts || [], inventory,
-    (product) => sellPrice(Number(product.unit_cost), effectiveMargins(product, policy).target));
-  return <section className="panel" style={{marginTop: 14}}><div className="panel-heading"><div><h2>Monthly demand and profit plan</h2><p>Gross profit and purchase cash use current inventory cost and configured target margins. They are conditional scenarios, before overheads, returns and payment timing.</p></div></div>
-    {forecast.metrics.demo && <p className="muted-cell">Demo figures are planning examples. Money amounts use mapped demo costs where available; they are not actual business profit.</p>}
-    <div className="table-scroll"><table><thead><tr><th>MONTH</th><th>FORECAST UNITS</th><th>COST COVERAGE</th><th>PLANNED REVENUE</th><th>GROSS PROFIT</th><th>STOCK SHORTFALL CASH</th></tr></thead><tbody>{rows.map((row) => {
-      const complete = row.priced === row.products;
-      return <tr key={row.month}><td>{row.month}</td><td>{row.units.toFixed(1)}</td><td>{row.priced} / {row.products} products</td><td>{complete ? `₹${row.revenue.toFixed(2)}` : "Cost mapping needed"}</td><td>{complete ? `₹${(row.revenue-row.cost).toFixed(2)}` : "Cost mapping needed"}</td><td>{complete ? `₹${row.purchaseCash.toFixed(2)}` : "Cost mapping needed"}</td></tr>;
-    })}</tbody></table></div>
-    <p className="muted-cell">Stock shortfall cash assumes no scheduled deliveries and values missing units at current cost. It is not a cash-flow forecast or an automatic purchase order.</p>
-  </section>;
-}
 
 function ReviewSignals({ invoice, inventory = [], onResolveStock, onMissingPurchase }: { invoice: any; inventory?: any[]; onResolveStock?: () => void; onMissingPurchase?: () => void }) {
   const matches = invoice.duplicate_matches || [];
@@ -132,7 +34,7 @@ function ReviewSignals({ invoice, inventory = [], onResolveStock, onMissingPurch
     if (line.is_stock_item === false) return [];
     const byId = inventory.find((product: any) => String(product.id) === String(line.product_id));
     const description = String(line.description || "").trim().toLowerCase();
-    const nameMatches = description ? inventory.filter((product: any) => String(product.name || "").trim().toLowerCase() === description) : [];
+    const nameMatches = description ? inventory.filter((product: any) => productMatchesDescription(product, description)) : [];
     const product = byId || (nameMatches.length === 1 ? nameMatches[0] : null);
     const cost = Number(product?.unit_cost || 0);
     const rate = Number(line.unit_rate);
@@ -153,7 +55,7 @@ function ReviewSignals({ invoice, inventory = [], onResolveStock, onMissingPurch
         stockWarnings.push(`Item ${index + 1}: service charge needs handling without a stock deduction.`);
         continue;
       }
-      const matches = inventory.filter((product: any) => String(product.name || "").trim().toLowerCase() === String(line.description || "").trim().toLowerCase());
+      const matches = inventory.filter((product: any) => productMatchesDescription(product, String(line.description || "")));
       const product = inventory.find((p: any) => String(p.id) === String(line.product_id)) || (matches.length === 1 ? matches[0] : null);
       if (!product) { stockWarnings.push(`Item ${index + 1}: confirm the product and its purchased stock. HSN alone cannot identify it.`); continue; }
       const key = String(product.id);
@@ -266,23 +168,11 @@ function App() {
   const [inventoryTypeFilter, setInventoryTypeFilter] = useState("ALL");
   const [missingHsnOnly, setMissingHsnOnly] = useState(false);
   const [priceHistoryOpen, setPriceHistoryOpen] = useState<Record<string, boolean>>({});
-  const [forecast, setForecast] = useState<any>(null);
-  const [forecastHorizon, setForecastHorizon] = useState(30);
-  const [forecastBusy, setForecastBusy] = useState(false);
-  const [forecastError, setForecastError] = useState("");
   const [movements, setMovements] = useState<Record<number, any[]>>({});
   const [documentPreview, setDocumentPreview] = useState<{ url: string; filename: string; contentType: string; objectUrl: boolean; invoice: any } | null>(null);
   const [documentLoading, setDocumentLoading] = useState(false);
   const [authState, setAuthState] = useState(authConfigured ? "loading" : "ready");
   const fileInput = useRef<HTMLInputElement>(null);
-  const forecastInput = useRef<HTMLInputElement>(null);
-  const forecastByDay = new Map<string, number>();
-  for (const row of forecast?.forecasts || []) {
-    const value = Number(row.predicted_quantity);
-    if (Number.isFinite(value)) forecastByDay.set(row.forecast_date, (forecastByDay.get(row.forecast_date) || 0) + value);
-  }
-  const overviewForecast = [...forecastByDay.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(0, 7);
-  const forecastMaximum = Math.max(1, ...overviewForecast.map(([, value]) => value));
   const approvedInvoiceCount = invoices.filter((invoice) => invoice.status === "APPROVED").length;
   const invoicesNeedingReview = invoices.filter((invoice) => invoice.status === "NEEDS_REVIEW");
   const lowStockProducts = inventory.filter((product) => product.low_stock);
@@ -294,7 +184,7 @@ function App() {
   const visibleInventory = inventory.filter((product) => {
     const query = inventoryQuery.trim().toLocaleLowerCase();
     const searchable = [product.sku, product.name, product.product_type, product.brand,
-      product.model, product.hsn_sac].filter(Boolean).join(" ").toLocaleLowerCase();
+      product.model, product.hsn_sac, ...(product.aliases || [])].filter(Boolean).join(" ").toLocaleLowerCase();
     return (!query || searchable.includes(query))
       && (inventoryTypeFilter === "ALL" || product.product_type === inventoryTypeFilter)
       && (!missingHsnOnly || !String(product.hsn_sac || "").trim());
@@ -342,14 +232,13 @@ function App() {
 
   const refreshLocalData = async () => {
     try {
-      const [invoiceResponse, inventoryResponse, forecastResponse, serialResponse, pricingResponse] = await Promise.all([
-        apiFetch(`${API}/invoices`), apiFetch(`${API}/inventory`), apiFetch(`${API}/forecasts/latest`),
+      const [invoiceResponse, inventoryResponse, serialResponse, pricingResponse] = await Promise.all([
+        apiFetch(`${API}/invoices`), apiFetch(`${API}/inventory`),
         apiFetch(`${API}/inventory/serial-assets`), apiFetch(`${API}/inventory/pricing-policy`),
       ]);
-      if (!invoiceResponse.ok || !inventoryResponse.ok || !forecastResponse.ok || !serialResponse.ok || !pricingResponse.ok) throw new Error("API request failed");
+      if (!invoiceResponse.ok || !inventoryResponse.ok || !serialResponse.ok || !pricingResponse.ok) throw new Error("API request failed");
       setInvoices(await invoiceResponse.json());
       setInventory(await inventoryResponse.json());
-      setForecast(await forecastResponse.json());
       setSerialAssets(await serialResponse.json());
       const policy = await pricingResponse.json();
       setPricingPolicy(policy);
@@ -540,22 +429,32 @@ function App() {
     }
   };
 
-  const saveProductHsn = async (productId: string | number, event: React.FormEvent<HTMLFormElement>) => {
+  const saveProductClassification = async (productId: string | number, event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const hsn = String(form.get("hsn_sac") || "").trim();
+    const payload: Record<string, unknown> = Object.fromEntries(["product_type", "brand", "model"].map((key) => [key, String(form.get(key) || "").trim() || null]));
+    payload.aliases = String(form.get("aliases") || "").split("\n").map(name => name.trim()).filter(Boolean);
     try {
       const response = await apiFetch(`${API}/inventory/${productId}/details`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hsn_sac: hsn || null }),
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.detail || "Could not save HSN/SAC");
-      setNotice(hsn ? `Verified HSN/SAC saved for ${result.name}.` : `HSN/SAC cleared for ${result.name}.`);
+      if (!response.ok) throw new Error(result.detail || "Could not save product classification");
+      setNotice(`Product details and learned invoice names saved for ${result.name}. SKU and stock stay unchanged.`);
       await refreshLocalData();
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not save HSN/SAC.");
-    }
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not save classification."); }
+  };
+
+  const saveProductHsn = async (productId: string | number, code: string) => {
+    const hsn = code.trim();
+    const response = await apiFetch(`${API}/inventory/${productId}/details`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hsn_sac: hsn || null }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail : "Could not save HSN/SAC. Please check the code and try again.");
+    await refreshLocalData();
+    setNotice(hsn ? `HSN/SAC saved for ${result.name}.` : `HSN/SAC cleared for ${result.name}.`);
   };
 
   const savePricingRules = async (productId: string | number, event: React.FormEvent<HTMLFormElement>) => {
@@ -632,25 +531,6 @@ function App() {
     }
   };
 
-  const recordInvoicePayment = async (invoiceId: string | number, event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const amount = Number(form.get("amount"));
-    try {
-      const response = await apiFetch(`${API}/invoices/${invoiceId}/payments`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount, method: String(form.get("method") || "").trim() || null,
-          reference: String(form.get("reference") || "").trim() || null }),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.detail || "Could not record payment");
-      setNotice(`Payment saved. Outstanding balance: ₹${(Number(result.grand_total) - Number(result.amount_paid)).toFixed(2)}.`);
-      await refreshLocalData();
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not record payment.");
-    }
-  };
-
   const recordMovement = async (productId: number, event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -679,60 +559,6 @@ function App() {
     }
   };
 
-  const runForecast = async (file?: File) => {
-    if (!file) return;
-    const form = new FormData();
-    form.append("file", file);
-    if (forecastBusy) return;
-    setForecastBusy(true); setForecastError("");
-    try {
-      const response = await apiFetch(`${API}/forecasts/import?horizon_days=${forecastHorizon}`, { method: "POST", body: form });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.detail || "Forecast could not be created");
-      setForecast(result);
-      setNotice("Forecast generated and evaluated on a chronological holdout.");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Forecast could not be created.";
-      setNotice(message); setForecastError(message);
-    } finally { setForecastBusy(false); }
-  };
-
-  const runApprovedSalesForecast = async () => {
-    if (forecastBusy) return;
-    setForecastBusy(true); setForecastError("");
-    try {
-      const response = await apiFetch(`${API}/forecasts/from-approved-sales`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirm_complete_sales_history: true, horizon_days: forecastHorizon }),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.detail || "Forecast could not be created");
-      setForecast(result);
-      setNotice(`Forecast generated from approved sales using ${result.model_name}.`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Forecast could not be created.";
-      setNotice(message); setForecastError(message);
-    } finally { setForecastBusy(false); }
-  };
-
-  const sendForecastFeedback = async (runId: number, productId: string, forecastDate: string, event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    try {
-      const response = await apiFetch(`${API}/forecasts/${runId}/feedback`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ product_id: productId, forecast_date: forecastDate,
-          actual_quantity: Number(form.get("actual_quantity")), comment: String(form.get("comment") || "") || null }),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.detail || "Could not save feedback");
-      event.currentTarget.reset();
-      setNotice(`Forecast feedback saved for ${productId} on ${forecastDate}.`);
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not save feedback.");
-    }
-  };
-
   if (authConfigured && authState === "loading") {
     return <main className="auth-screen"><section className="panel"><h1>Connecting to your workspace…</h1></section></main>;
   }
@@ -750,13 +576,13 @@ function App() {
         <nav aria-label="Main navigation">
           {navItems.map((item, index) => <button key={item} className={`nav-item ${active === item ? "selected" : ""}`} onClick={() => setActive(item)}><span className="nav-icon">{["⌂", "▤", "₹", "▦", "⌁", "▧"][index]}</span>{item}{item === "Invoices" && invoices.filter((invoice) => invoice.status === "NEEDS_REVIEW").length > 0 && <span className="nav-count">{invoices.filter((invoice) => invoice.status === "NEEDS_REVIEW").length}</span>}</button>)}
         </nav>
-        <div className="sidebar-bottom"><div className="help-card"><span className="help-icon">?</span><strong>Need a hand?</strong><p>Explore the quick-start guide to set up your workspace.</p><button onClick={() => window.location.assign("/guide.html")}>Open guide <span>↗</span></button></div><button className="profile"><span className="profile-avatar">T</span><span><strong>Demo User</strong><small>Administrator</small></span><span className="profile-menu">···</span></button></div>
+        <div className="sidebar-bottom"><div className="help-card"><span className="help-icon">?</span><strong>Need a hand?</strong><p>Explore the quick-start guide to set up your workspace.</p><button onClick={() => window.location.assign("/guide.html")}>Open guide <span>↗</span></button></div><button className="profile"><span className="profile-avatar">T</span><span><strong>Tharun</strong><small>Administrator</small></span><span className="profile-menu">···</span></button></div>
       </aside>
 
       <main className="main-area">
         <header className="topbar"><div className="breadcrumb">Workspace <span>/</span> <strong>{active}</strong></div><div className="top-actions">{authConfigured ? <button className="text-button" onClick={signOut}>Sign out</button> : <span className="demo-pill"><i /> Demo workspace</span>}<button className="icon-button" aria-label="Notifications" onClick={() => setNotice("You’re all caught up.")}>♧<b /></button><span className="top-avatar">T</span></div></header>
         <div className={`content-wrap ${active === "Forecasts" ? "forecast-page" : ""}`}>
-          <div className="page-heading"><div><div className="eyebrow">{invoices.length > 0 && invoices.every(i => String(i.source_type || "").startsWith("DEMO")) ? "DEMONSTRATION WORKSPACE · SAMPLE DATA" : "BUSINESS WORKSPACE"}</div><h1>{active === "Overview" ? "Good morning, Demo User" : active}<span className="wave"> ✳</span></h1><p>{active === "Overview" ? "Here’s what’s happening with your business today." : active === "Forecasts" ? "Sales, pricing and profit planning, one step at a time." : `Manage your ${active.toLowerCase()} in your workspace.`}</p></div><input ref={fileInput} type="file" accept="application/pdf,image/jpeg,image/png" multiple hidden onChange={(event) => { const files = Array.from(event.currentTarget.files || []); void uploadInvoices(files); event.currentTarget.value = ""; }}/>{active !== "Forecasts" && <><label className="upload-direction">Upload as <select value={uploadDirection} onChange={(event) => setUploadDirection(event.target.value)}><option value="UNKNOWN">Choose during review</option><option value="PURCHASE">Purchase bills</option><option value="SALE">Sales bills</option></select></label><button className="primary-button" onClick={() => fileInput.current?.click()}><span>＋</span> Upload invoices</button></>}</div>
+          <div className="page-heading"><div><div className="eyebrow">{invoices.length > 0 && invoices.every(i => String(i.source_type || "").startsWith("DEMO")) ? "DEMONSTRATION WORKSPACE · SAMPLE DATA" : "BUSINESS WORKSPACE"}</div><h1>{active === "Overview" ? "Good morning, Tharun" : active}<span className="wave"> ✳</span></h1><p>{active === "Overview" ? "Here’s what’s happening with your business today." : active === "Forecasts" ? "Bill profits, monthly totals and one clear forecast." : `Manage your ${active.toLowerCase()} in your workspace.`}</p></div><input ref={fileInput} type="file" accept="application/pdf,image/jpeg,image/png" multiple hidden onChange={(event) => { const files = Array.from(event.currentTarget.files || []); void uploadInvoices(files); event.currentTarget.value = ""; }}/>{active !== "Forecasts" && <><label className="upload-direction">Upload as <select value={uploadDirection} onChange={(event) => setUploadDirection(event.target.value)}><option value="UNKNOWN">Choose during review</option><option value="PURCHASE">Purchase bills</option><option value="SALE">Sales bills</option></select></label><button className="primary-button" onClick={() => fileInput.current?.click()}><span>＋</span> Upload invoices</button></>}</div>
 
           {notice && <div className="notice" role="status"><span>{notice}</span><button onClick={() => setNotice("")} aria-label="Dismiss">×</button></div>}
           {active !== "Forecasts" && <div className="demo-banner"><span className="demo-dot">i</span><span><strong>Business data</strong> — Inventory and invoice summaries use your saved records. Real bill analysis shows its source files and data limitations.</span><button onClick={() => void refreshLocalData()}>Refresh <span>↻</span></button></div>}
@@ -765,14 +591,12 @@ function App() {
 
           <section className="metric-grid" aria-label="Business summary">
             <article className="metric-card"><div className="metric-top"><span>Approved invoices</span><span className="metric-symbol violet">▤</span></div><div className="metric-value">{approvedInvoiceCount}</div><div className="metric-caption">{invoices.length} tracked · {invoicesNeedingReview.length} awaiting review</div></article>
-            <article className="metric-card"><div className="metric-top"><span>Estimated inventory value</span><span className="metric-symbol blue">▦</span></div><div className="metric-value">{inventoryValue.toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 })}</div><div className="metric-caption">{inventory.length} products · {unverifiedStockCount} stock counts unverified</div></article>
+            <article className="metric-card"><div className="metric-top"><span>Estimated inventory value</span><span className="metric-symbol blue">▦</span></div><div className="metric-value">{inventoryValue.toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 })}</div><div className="metric-caption">{inventory.length} products · {unverifiedStockCount} physical counts not recorded</div></article>
             <article className="metric-card"><div className="metric-top"><span>Needs attention</span><span className="metric-symbol orange">!</span></div><div className="metric-value">{invoicesNeedingReview.length + lowStockProducts.length}</div><div className="metric-caption">{invoicesNeedingReview.length} invoices · {lowStockProducts.length} low-stock products</div></article>
           </section>
 
           <section className="middle-grid">
-            <article className="panel forecast-panel"><div className="panel-heading"><div><h2>Demand forecast</h2><p>{forecast?.metrics?.demo ? "Synthetic presentation demo · not business sales" : overviewForecast.length ? "Latest saved model · combined product units" : "Train a model from complete sales history to see predictions"}</p></div><button className="select-button" onClick={() => setActive("Forecasts")}>View models →</button></div>
-              {overviewForecast.length > 0 ? <><div className="chart"><div className="chart-main"><div className="bars">{overviewForecast.map(([day, quantity]) => <div className="bar-group" key={day}><strong>{quantity.toFixed(1)}</strong><div className="bar-pair"><i className="bar future" title={`${day}: ${quantity.toFixed(1)} predicted units`} style={{height: `${Math.max(1, quantity / forecastMaximum * 140)}px`}} /></div><span>{day.slice(5)}</span></div>)}</div></div></div><div className="forecast-foot"><span>{forecast.model_name || "Saved demand model"}</span><span>{forecast.metrics?.demo ? "Demo data" : "Model estimate; not guaranteed sales"}</span></div></> : <p className="muted-cell">Open Forecasts to analyze the 20 real bills or train demand forecasts from complete sales history.</p>}
-            </article>
+            <article className="panel forecast-panel"><div className="panel-heading"><div><h2>Monthly profit forecast</h2><p>Calculate profit per bill, add it by month and forecast the next month.</p></div></div><p>One monthly profit model with separate real and synthetic invoice workspaces.</p><button className="primary-button" onClick={() => setActive("Forecasts")}>Open profit forecast</button></article>
 
             <article className="panel alerts-panel"><div className="panel-heading"><div><h2>Needs attention</h2><p>Invoices and stock that need review</p></div></div><div className="alert-list">{lowStockProducts.slice(0, 3).map((product) => <div className="alert-row" key={`stock-${product.id}`}><span className="alert-icon red-bg">↓</span><span className="alert-copy"><strong>{product.name} is running low</strong><small>{product.quantity_on_hand} on hand · reorder at {product.reorder_point}</small></span><span className="priority high">Stock</span></div>)}{invoicesNeedingReview.slice(0, 3).map((invoice) => <div className="alert-row" key={`invoice-${invoice.id}`}><span className="alert-icon amber-bg">▤</span><span className="alert-copy"><strong>Invoice needs review</strong><small>{invoice.vendor_name || invoice.filename} · {invoice.invoice_number || "number missing"}</small></span><span className="priority medium">Review</span></div>)}{invoicesNeedingReview.length === 0 && lowStockProducts.length === 0 && <p className="muted-cell">No outstanding invoice reviews or low-stock alerts.</p>}</div><button className="all-alerts" onClick={() => setActive(lowStockProducts.length ? "Inventory" : "Invoices")}>Open {lowStockProducts.length ? "inventory" : "invoices"} <span>→</span></button></article>
           </section>
@@ -789,23 +613,23 @@ function App() {
             <section className="panel"><div className="panel-heading"><div><h2>Record a sale</h2><p>Choose products, set the selling rate, record payment, and complete the sale. Stock updates when you submit.</p></div></div><p className="muted-cell">Create a simple sales receipt. No tax setup is needed; stock and payment balances update automatically.</p><form onSubmit={(event) => void createSalesInvoice(event)} className="sales-invoice-form"><div className="sales-customer-grid"><label>Invoice number<input name="invoice_number" required maxLength={128} placeholder="e.g. POS-1001"/></label><label>Invoice date<input name="invoice_date" type="date" required defaultValue={new Date().toISOString().slice(0, 10)}/></label><label>Customer name<input name="receiver_name" required maxLength={300} placeholder="Customer or business name"/></label><label className="sales-address">Customer address<textarea name="receiver_address" maxLength={2000} rows={2} placeholder="Optional billing address"/></label><label>Payment received<input name="amount_paid" type="number" min="0" step="0.01" defaultValue="0"/></label></div><h3>Items</h3>{salesLines.map((line, index) => <fieldset className="sales-line-form" key={index}><legend>Item {index + 1}</legend><label>Product<select required value={line.product_id} onChange={(event) => { const product = inventory.find((candidate) => String(candidate.id) === event.target.value); setSalesLines((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, product_id: event.target.value, unit_rate: item.unit_rate || (product ? sellPrice(Number(product.unit_cost), effectiveMargins(product, pricingPolicy).target).toFixed(2) : "") } : item)); }}><option value="">Choose product</option>{inventory.map((product) => <option key={product.id} value={product.id}>{[product.name, product.brand, product.model, product.hsn_sac ? `HSN ${product.hsn_sac}` : null, `${product.quantity_on_hand} in stock`].filter(Boolean).join(" · ")}</option>)}</select></label><label>Quantity<input type="number" min="1" step="1" required value={line.quantity} onChange={(event) => setSalesLines((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, quantity: event.target.value } : item))}/></label><label>Selling rate<input type="number" min="0" step="0.01" required value={line.unit_rate} onChange={(event) => setSalesLines((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, unit_rate: event.target.value } : item))}/></label>{Number(line.unit_rate || 0) < minimumSaleRate(inventory.find((product) => String(product.id) === String(line.product_id)), pricingPolicy) && line.product_id && <p className="review-error">Below the floor rate of ₹{minimumSaleRate(inventory.find((product) => String(product.id) === String(line.product_id)), pricingPolicy).toFixed(2)}. Add a reason to confirm this exception.</p>}<label>Price override reason (required below floor)<input value={line.price_override_reason || ""} onChange={(event) => setSalesLines((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, price_override_reason: event.target.value } : item))} placeholder="e.g. clearance / customer discount"/></label><label>Serial numbers (if this product is serialized)<input placeholder="One per unit, comma separated" value={line.serial_numbers || ""} onChange={(event) => setSalesLines((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, serial_numbers: event.target.value } : item))}/></label>{salesLines.length > 1 && <button type="button" className="text-button" onClick={() => setSalesLines((current) => current.filter((_, itemIndex) => itemIndex !== index))}>Remove</button>}</fieldset>)}<button type="button" className="select-button" onClick={() => setSalesLines((current) => [...current, { product_id: "", quantity: "1", unit_rate: "", tax_rate: "", serial_numbers: "" }])}>Add item</button><div className="sales-totals"><strong>Total: ₹{(salesTotals.subtotal + salesTotals.tax).toFixed(2)}</strong></div><button type="submit" className="primary-button">Complete sale and update stock</button></form></section>
           </>: active === "Inventory" ? <>
             <section className="panel table-panel">
-              <div className="panel-heading"><div><h2>Inventory</h2><p>Search by product, type, brand, model, SKU, or HSN/SAC.</p></div></div>
+              <div className="panel-heading"><div><h2>Inventory</h2><p>Search by product, type, brand, model, SKU, or HSN/SAC. Missing classification is suggested from the product name; review it below.</p></div></div>
               <div className="inventory-stock-guidance"><span className="inventory-stock-guidance-icon">✓</span><div><strong>Stock updates automatically for sales entered here</strong><p>Complete a sale in the Sales page, or approve an uploaded invoice marked SALE, and available stock is reduced automatically. Approving a PURCHASE adds stock.</p><small>Use “Stock tools” only to correct a physical count, damaged item, or a sale made outside the app.</small></div></div>
               <div className="inventory-search-controls">
-                <input aria-label="Search inventory" placeholder="Search products or HSN/SAC" value={inventoryQuery} onChange={(event) => setInventoryQuery(event.target.value)}/>
+                <input aria-label="Search inventory" placeholder="Search product, SKU, brand, model or HSN/SAC" value={inventoryQuery} onChange={(event) => setInventoryQuery(event.target.value)}/>
                 <select aria-label="Filter by product type" value={inventoryTypeFilter} onChange={(event) => setInventoryTypeFilter(event.target.value)}>
                   <option value="ALL">All product types</option>{productTypes.map((type: string) => <option key={type} value={type}>{type}</option>)}
                 </select>
                 <button type="button" className={missingHsnOnly ? "select-button active-filter" : "select-button"} onClick={() => setMissingHsnOnly((current) => !current)} disabled={missingHsnCount === 0}>{missingHsnOnly ? "Show all products" : `Missing HSN/SAC (${missingHsnCount})`}</button>
                 <span>{visibleInventory.length} of {inventory.length} products</span>
               </div>
-              <div className="table-scroll"><table className="inventory-table"><thead><tr><th>SKU</th><th>PRODUCT</th><th>TYPE</th><th>BRAND / MODEL</th><th>HSN/SAC</th><th>ON HAND</th><th>REORDER AT</th><th>UNIT COST</th><th>STATUS / STOCK TOOLS</th></tr></thead><tbody>
+              <div className="table-scroll"><table className="inventory-table"><thead><tr><th>PRODUCT</th><th>TYPE</th><th>BRAND / MODEL</th><th>HSN/SAC</th><th>ON HAND</th><th>REORDER AT</th><th>UNIT COST</th><th>STATUS / STOCK TOOLS</th></tr></thead><tbody>
                 {visibleInventory.map((product) => {
                   const priceHistory = purchasePriceHistory(product.id, invoices);
                   const priceInsights = purchasePriceInsights(priceHistory, product);
-                  return <tr key={product.id}><td>{product.sku}</td><td><strong>{product.name}</strong>{!product.stock_count_verified && <small style={{ display: "block" }}>Count unverified</small>}</td><td>{product.product_type || "Unclassified"}</td><td>{[product.brand, product.model].filter(Boolean).join(" · ") || "—"}</td><td><details className="inventory-hsn-tools"><summary>{product.hsn_sac || "Add HSN/SAC"}</summary><form onSubmit={(event) => void saveProductHsn(product.id, event)}><label>Verified HSN/SAC<input name="hsn_sac" maxLength={32} defaultValue={product.hsn_sac || ""} placeholder="Enter code from invoice"/></label><small>Use the code printed on the invoice or a verified tax classification.</small><button className="text-button" type="submit">Save code</button></form></details></td><td>{product.quantity_on_hand}</td><td>{product.reorder_point}</td><td>{Number(product.unit_cost).toFixed(2)}<button type="button" className="text-button" style={{ display: "block", marginTop: 5 }} onClick={() => setPriceHistoryOpen((current) => ({ ...current, [product.id]: !current[product.id] }))}>{priceHistoryOpen[product.id] ? "Hide price history" : `Price history (${priceHistory.length})`}</button>{priceHistoryOpen[product.id] && <div className="purchase-price-history"><strong>{purchasePriceSignal(priceHistory)}</strong>{priceHistory.length ? <><p>{priceInsights?.advice}</p>{priceInsights?.estimate !== null && priceInsights?.estimate !== undefined && <p>Simple trend estimate: {priceInsights.currency} {priceInsights.estimate.toFixed(2)} per {priceInsights.unit} (not an ML forecast).</p>}{priceInsights?.supplier && <p>Lowest latest comparable rate: {priceInsights.supplier.supplier} · {priceInsights.currency} {priceInsights.supplier.unit_rate.toFixed(2)} per {priceInsights.unit}.</p>}<ul>{priceHistory.slice().reverse().map((row, index) => <li key={`${row.date}-${row.invoice_number}-${index}`}>{row.date} · {row.supplier} · {row.invoice_number} · {row.currency} {row.unit_rate.toFixed(2)} / {row.unit} × {row.quantity}</li>)}</ul></> : <p>Approve and match purchase invoices to build supplier price history.</p>}</div>}</td><td><span className={"status-badge " + (product.low_stock ? "amber" : "green")}>{product.low_stock ? "Low stock" : "In stock"}</span><details className="inventory-stock-tools"><summary>Stock tools</summary><div className="inventory-stock-tools-body"><p>Manual correction only. Sales entered through the Sales page or approved SALE invoices already update stock.</p><form onSubmit={(event) => void recordMovement(product.id, event)} className="inventory-movement-form"><label>Entry type<select name="movement_type"><option value="ADJUSTMENT">Stock correction</option><option value="OPENING_STOCK">Confirmed opening stock</option></select></label><label>Effective date<input name="effective_date" type="date" required defaultValue={new Date().toISOString().slice(0,10)}/></label><input aria-label="Stock change in units" name="quantity_change" type="number" required placeholder="+ or − units"/><input aria-label="Reason for stock adjustment" name="reason" required placeholder="Reason for change"/><label className="stock-confirm"><input type="checkbox" name="confirmed_opening_balance"/>I verified this opening quantity and date (required for opening stock).</label><button className="primary-button" type="submit">Save stock entry</button></form><button className="text-button inventory-history-button" onClick={() => void loadMovements(product.id)}>View movement history</button>{movements[product.id]?.map((movement) => <small className="inventory-movement-row" key={movement.id}>{movement.quantity_change > 0 ? "+" : ""}{movement.quantity_change} · {movement.reason} · Effective {movement.effective_date || "date not recorded"} · Saved {new Date(movement.created_at).toLocaleString()}</small>)}</div></details></td></tr>;
+                  return <tr key={product.id}><td><strong>{product.name}</strong><small className="inventory-count-note" title="Invoice approvals update recorded stock. A physical count is a separate shelf check recorded under Stock tools.">{product.stock_count_verified ? "Physical count recorded" : "Physical count not recorded"}</small></td><td><span className="product-type-chip">{product.product_type || "Needs classification"}</span></td><td><strong>{product.brand || "Brand not identified"}</strong>{product.model && <small className="catalogue-model">{product.model}</small>}<small className="catalogue-source">{Object.values(product.classification_sources || {}).includes("name_derived") ? "Name-derived · review suggested" : "Saved classification"}</small><details className="catalogue-edit"><summary>Edit classification</summary><form onSubmit={(event) => void saveProductClassification(product.id, event)}><label>Product type<input name="product_type" defaultValue={product.product_type || ""} maxLength={120} placeholder="e.g. Monitor"/></label><label>Brand<input name="brand" defaultValue={product.brand || ""} maxLength={120} placeholder="e.g. Dell"/></label><label>Model / specifications<input name="model" defaultValue={product.model || ""} maxLength={160} placeholder="e.g. SE2225HM"/></label><label>Confirmed alternate invoice descriptions<textarea name="aliases" rows={3} defaultValue={(product.aliases || []).join("\n")} placeholder="One confirmed name per line"/></label><small>These names refer to the same physical product. Different models must stay separate.</small><small>SKU is a stable stock identifier. Classification does not merge products or change quantities. Blank fields use a name-derived suggestion when available.</small><button type="submit" className="select-button">Save classification</button></form></details></td><td><InventoryHsnEditor product={product} onSave={(code) => saveProductHsn(product.id, code)}/></td><td>{product.quantity_on_hand}</td><td>{product.reorder_point}</td><td>{Number(product.unit_cost).toFixed(2)}<button type="button" className="text-button" style={{ display: "block", marginTop: 5 }} onClick={() => setPriceHistoryOpen((current) => ({ ...current, [product.id]: !current[product.id] }))}>{priceHistoryOpen[product.id] ? "Hide price history" : `Price history (${priceHistory.length})`}</button>{priceHistoryOpen[product.id] && <div className="purchase-price-history"><strong>{purchasePriceSignal(priceHistory)}</strong>{priceHistory.length ? <><p>{priceInsights?.advice}</p>{priceInsights?.estimate !== null && priceInsights?.estimate !== undefined && <p>Simple trend estimate: {priceInsights.currency} {priceInsights.estimate.toFixed(2)} per {priceInsights.unit} (not an ML forecast).</p>}{priceInsights?.supplier && <p>Lowest latest comparable rate: {priceInsights.supplier.supplier} · {priceInsights.currency} {priceInsights.supplier.unit_rate.toFixed(2)} per {priceInsights.unit}.</p>}<ul>{priceHistory.slice().reverse().map((row, index) => <li key={`${row.date}-${row.invoice_number}-${index}`}>{row.date} · {row.supplier} · {row.invoice_number} · {row.currency} {row.unit_rate.toFixed(2)} / {row.unit} × {row.quantity}</li>)}</ul></> : <p>Approve and match purchase invoices to build supplier price history.</p>}</div>}</td><td><span className={"status-badge " + (product.low_stock ? "amber" : "green")}>{product.low_stock ? "Low stock" : "In stock"}</span><details className="inventory-stock-tools"><summary>Stock tools</summary><div className="inventory-stock-tools-body"><p>Manual correction only. Sales entered through the Sales page or approved SALE invoices already update stock.</p><PhysicalCount product={product} onRefresh={refreshLocalData} onNotice={setNotice}/><form onSubmit={(event) => void recordMovement(product.id, event)} className="inventory-movement-form"><label>Entry type<select name="movement_type"><option value="ADJUSTMENT">Stock correction</option><option value="OPENING_STOCK">Confirmed opening stock</option></select></label><label>Effective date<input name="effective_date" type="date" required defaultValue={new Date().toISOString().slice(0,10)}/></label><input aria-label="Stock change in units" name="quantity_change" type="number" required placeholder="+ or − units"/><input aria-label="Reason for stock adjustment" name="reason" required placeholder="Reason for change"/><label className="stock-confirm"><input type="checkbox" name="confirmed_opening_balance"/>I verified this opening quantity and date (required for opening stock).</label><button className="primary-button" type="submit">Save stock entry</button></form><button className="text-button inventory-history-button" onClick={() => void loadMovements(product.id)}>View movement history</button>{movements[product.id]?.map((movement) => <small className="inventory-movement-row" key={movement.id}>{movement.quantity_change > 0 ? "+" : ""}{movement.quantity_change} · {movement.reason} · Effective {movement.effective_date || "date not recorded"} · Saved {new Date(movement.created_at).toLocaleString()}</small>)}</div></details></td></tr>;
                 })}
-                {visibleInventory.length === 0 && <tr><td colSpan={9} className="muted-cell">{inventory.length ? "No products match this search." : "No products yet. Add one below."}</td></tr>}
+                {visibleInventory.length === 0 && <tr><td colSpan={8} className="muted-cell">{inventory.length ? "No products match this search." : "No products yet. Add one below."}</td></tr>}
               </tbody></table></div>
             </section>
             <section className="panel table-panel" style={{ marginTop: 14 }}><div className="panel-heading"><div><h2>Serialized stock and warranties</h2><p>Record serials while reviewing purchase invoices to track stock units, sales, and warranty dates.</p></div></div><div className="table-scroll"><table><thead><tr><th>SERIAL NUMBER</th><th>PRODUCT</th><th>STATUS</th><th>PURCHASE INVOICE</th><th>SALE INVOICE</th><th>WARRANTY</th></tr></thead><tbody>{serialAssets.map((asset: any) => <tr key={asset.serial_number}><td>{asset.serial_number}</td><td>{asset.product_name}</td><td><span className={"status-badge " + (asset.status === "IN_STOCK" ? "green" : "blue")}><i/>{asset.status === "IN_STOCK" ? "In stock" : "Sold"}</span></td><td>{asset.purchase_invoice_id}</td><td>{asset.sale_invoice_id || "—"}</td><td>{asset.warranty_until ? "Until " + asset.warranty_until : asset.warranty_months ? asset.warranty_months + " months" : "Not recorded"}</td></tr>)}{serialAssets.length === 0 && <tr><td colSpan={6} className="muted-cell">No serialized items recorded yet. Add serials and optional warranty months when correcting a purchase invoice before approving it.</td></tr>}</tbody></table></div></section>
@@ -813,15 +637,9 @@ function App() {
             <section className="panel table-panel" style={{ marginTop: 14 }}><div className="panel-heading"><div><h2>Product-specific overrides</h2><p>Leave a field blank to use the common rule. Set a value only when this product needs a different margin.</p></div></div><div className="table-scroll"><table><thead><tr><th>PRODUCT</th><th>UNIT COST</th><th>MIN MARGIN OVERRIDE</th><th>TARGET MARGIN OVERRIDE</th><th>EFFECTIVE MIN SELL PRICE</th><th>EFFECTIVE TARGET PRICE</th><th>SAVE</th></tr></thead><tbody>{visibleInventory.map((product) => { const cost = Number(product.unit_cost || 0); const ownMin = product.minimum_margin_percent == null ? null : Number(product.minimum_margin_percent); const ownTarget = product.target_margin_percent == null ? null : Number(product.target_margin_percent); const margins = effectiveMargins(product, pricingPolicy); const minimumPrice = sellPrice(cost, margins.minimum); const targetPrice = sellPrice(cost, margins.target); const formId = `pricing-${product.id}`; return <tr key={product.id}><td><strong>{product.name}</strong><small style={{ display: "block" }}>{product.sku}</small></td><td>₹{cost.toFixed(2)}</td><td><input form={formId} aria-label={`${product.name} minimum margin override percent`} name="minimum_margin_percent" type="number" min="0" max="99.99" step="0.01" defaultValue={ownMin ?? ""} placeholder={pricingPolicy.minimum_margin_percent == null ? "None" : `Common ${pricingPolicy.minimum_margin_percent}%`}/><small className="pricing-inheritance">{ownMin == null ? `Using common: ${pricingPolicy.minimum_margin_percent == null ? "no minimum" : `${pricingPolicy.minimum_margin_percent}%`}` : `Product override: ${ownMin}%`}</small></td><td><input form={formId} aria-label={`${product.name} target margin override percent`} name="target_margin_percent" type="number" min="0" max="99.99" step="0.01" defaultValue={ownTarget ?? ""} placeholder={pricingPolicy.target_margin_percent == null ? "Same as minimum" : `Common ${pricingPolicy.target_margin_percent}%`}/><small className="pricing-inheritance">{ownTarget == null ? `Using common: ${pricingPolicy.target_margin_percent == null ? "same as minimum" : `${pricingPolicy.target_margin_percent}%`}` : `Product override: ${ownTarget}%`}</small></td><td>₹{minimumPrice.toFixed(2)}</td><td>₹{targetPrice.toFixed(2)}</td><td><form id={formId} onSubmit={(event) => void savePricingRules(product.id, event)}><button className="text-button" type="submit">Save override</button></form></td></tr>; })}{visibleInventory.length === 0 && <tr><td colSpan={7} className="muted-cell">Add products to set selling price rules.</td></tr>}</tbody></table></div></section>
             <section className="panel" style={{ marginTop: 14 }}><div className="panel-heading"><div><h2>Add product</h2><p>Enter an opening stock count and basic product identity.</p></div></div><form onSubmit={(event) => void createProduct(event)} className="inventory-product-form"><input name="sku" required placeholder="SKU" maxLength={80}/><input name="name" required placeholder="Product name" maxLength={255}/><input name="product_type" placeholder="Type (e.g. Monitor)" maxLength={120}/><input name="brand" placeholder="Brand (e.g. Dell)" maxLength={120}/><input name="model" placeholder="Model / key specs" maxLength={160}/><input name="hsn_sac" placeholder="HSN/SAC" maxLength={32}/><input name="quantity_on_hand" type="number" min="0" required placeholder="On hand"/><input name="reorder_point" type="number" min="0" defaultValue="0" placeholder="Reorder at"/><input name="unit_cost" type="number" min="0" step="0.01" defaultValue="0" placeholder="Unit cost"/><input name="minimum_margin_percent" type="number" min="0" max="99.99" step="0.01" placeholder="Min margin % (optional)"/><input name="target_margin_percent" type="number" min="0" max="99.99" step="0.01" placeholder="Target margin % (optional)"/><button className="primary-button" type="submit">Add product</button></form></section>
           </> : active === "Forecasts" ? <>
-            <input ref={forecastInput} type="file" accept=".csv,text/csv" hidden onChange={(event) => { void runForecast(event.target.files?.[0]); event.currentTarget.value = ""; }}/>
-            <ForecastWorkspace forecast={forecast} invoices={invoices} inventory={inventory} horizon={forecastHorizon}
-              busy={forecastBusy} error={forecastError} onHorizon={setForecastHorizon} onSales={() => void runApprovedSalesForecast()}
-              onUpload={() => forecastInput.current?.click()} onReview={() => setActive("Invoices")}
-              onFeedback={(run, product, day, event) => void sendForecastFeedback(run, product, day, event)}
-              pricing={<CommercialModels/>} plan={forecast ? <ForecastPlan forecast={forecast} inventory={inventory} policy={pricingPolicy}/> : null}/>
+            <ForecastWorkspace/>
           </> : <>
-            <div className="panel-heading"><div><h2>Payments</h2><p>Track outstanding customer balances and supplier payments.</p></div></div>
-            <section className="panel table-panel" style={{ marginTop: 14 }}><div className="panel-heading"><div><h3>Outstanding invoices</h3><p>Approved sales are receivables; approved purchases are payables. Record each later payment here.</p></div></div><div className="table-scroll"><table><thead><tr><th>TYPE</th><th>PARTY / INVOICE</th><th>INVOICE TOTAL</th><th>PAID</th><th>OUTSTANDING</th><th>RECORD PAYMENT</th></tr></thead><tbody>{invoices.filter((invoice) => invoice.status === "APPROVED" && Number(invoice.grand_total || 0) > Number(invoice.amount_paid || 0)).map((invoice: any) => { const balance = Number(invoice.grand_total || 0) - Number(invoice.amount_paid || 0); return <tr key={invoice.id}><td><span className={"invoice-direction-badge " + (invoice.transaction_type === "SALE" ? "sale" : "purchase")}>{invoice.transaction_type === "SALE" ? "Receivable" : "Payable"}</span></td><td>{invoice.transaction_type === "SALE" ? invoice.receiver_name || invoice.vendor_name : invoice.vendor_name || invoice.receiver_name}<small style={{ display: "block" }}>{invoice.invoice_number || invoice.filename}</small></td><td>₹{Number(invoice.grand_total).toFixed(2)}</td><td>₹{Number(invoice.amount_paid || 0).toFixed(2)}</td><td>₹{balance.toFixed(2)}</td><td><form onSubmit={(event) => void recordInvoicePayment(invoice.id, event)} style={{ display: "flex", flexWrap: "wrap", gap: 5 }}><input name="amount" type="number" min="0.01" max={balance.toFixed(2)} step="0.01" required placeholder="Amount" style={{ width: 100 }}/><input name="method" maxLength={40} placeholder="Method" style={{ width: 90 }}/><input name="reference" maxLength={160} placeholder="Reference" style={{ width: 110 }}/><button className="text-button" type="submit">Save payment</button></form></td></tr>})}{!invoices.some((invoice) => invoice.status === "APPROVED" && Number(invoice.grand_total || 0) > Number(invoice.amount_paid || 0)) && <tr><td colSpan={6} className="muted-cell">No outstanding approved invoices.</td></tr>}</tbody></table></div></section>
+            <PaymentsWorkspace invoices={invoices} onRefresh={refreshLocalData} onNotice={setNotice}/>
           </>}
           <footer className="page-footer"><span>Autonomous Business OS <span className="footer-separator">·</span> Capstone preview</span><span>Built for clearer business decisions <span className="footer-spark">✳</span></span></footer>
         </div>
@@ -832,4 +650,3 @@ function App() {
 }
 
 export default App;
-

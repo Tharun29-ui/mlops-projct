@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from datetime import date
 from typing import Literal
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -11,6 +11,7 @@ from app.models import SerialAsset
 from app.core.config import get_settings
 from app.repositories import dynamodb_store
 from app.services.stock_dates import validate_dated_stock
+from app.services.product_classification import classified_product
 
 router = APIRouter(prefix="/inventory", tags=["inventory"])
 
@@ -55,7 +56,17 @@ class MovementInput(BaseModel):
     confirmed_opening_balance: bool = False
 
 
+class PhysicalCountInput(BaseModel):
+    counted_quantity: int = Field(ge=0)
+    expected_quantity: int = Field(ge=0)
+    confirmed: bool
+
+
 def _product_dict(p: Product) -> dict:
+    return classified_product(_stored_product_dict(p))
+
+
+def _stored_product_dict(p: Product) -> dict:
     if isinstance(p, dict):
         return {"product_type": None, "brand": None, "model": None, "hsn_sac": None, "aliases": [],
                 "minimum_margin_percent": None, "target_margin_percent": None,
@@ -259,6 +270,39 @@ def add_movement(product_id: str, payload: MovementInput, db: Session = Depends(
     db.commit()
     db.refresh(product)
     return _product_dict(product)
+
+
+@router.post("/{product_id}/physical-count")
+def confirm_physical_count(product_id: str, payload: PhysicalCountInput, db: Session = Depends(get_db)):
+    if not payload.confirmed:
+        raise HTTPException(422, "Confirm that you physically counted this product.")
+    if payload.counted_quantity != payload.expected_quantity:
+        raise HTTPException(409, "Count differs from recorded stock. Use a stock correction with a reason first.")
+    if get_settings().business_data_table_name:
+        try:
+            product = dynamodb_store.confirm_stock_count(product_id, payload.counted_quantity, payload.expected_quantity)
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        if not product:
+            raise HTTPException(404, "Product not found.")
+        return _product_dict(product)
+    try:
+        numeric_id = int(product_id)
+    except ValueError as exc:
+        raise HTTPException(404, "Product not found.") from exc
+    if not db.get(Product, numeric_id):
+        raise HTTPException(404, "Product not found.")
+    result = db.execute(update(Product).where(Product.id == numeric_id,
+        Product.quantity_on_hand == payload.expected_quantity).values(stock_count_verified=True))
+    if result.rowcount != 1:
+        db.rollback()
+        raise HTTPException(409, "Stock changed while confirming the count; refresh and count again.")
+    db.add(StockMovement(product_id=numeric_id, quantity_change=0,
+        reason=f"Physical count confirmed: {payload.counted_quantity} units",
+        movement_type="COUNT_VERIFICATION", effective_date=date.today()))
+    db.commit()
+    db.expire_all()
+    return _product_dict(db.get(Product, numeric_id))
 
 
 @router.get("/{product_id}/movements")

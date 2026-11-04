@@ -38,4 +38,15 @@ class AnalysisSourceTests(unittest.TestCase):
         self.assertEqual(approved_analysis_invoices([actual,demo]),([actual],False,1))
 
 
+    def test_synthetic_uploads_cannot_enter_real_training(self):
+        actual={'status':'APPROVED','source_type':'UPLOAD','filename':'AP-55.pdf'}
+        for sample in [{'filename':'SYN-P-001.pdf'},{'filename':'SYN-S-002.jpeg'},{'invoice_number':'SYN-S-003'},{'source_type':'SYNTHETIC_WORKFLOW_TEST'}]:
+            demo={'status':'APPROVED','source_type':'UPLOAD',**sample}
+            self.assertEqual(approved_analysis_invoices([actual,demo]),([actual],False,1))
+
+    def test_similar_business_names_are_not_marked_as_test_data(self):
+        from app.services.analysis_sources import is_synthetic_invoice
+        for name in ['SYN-TECH-001.pdf','Synthetic supplier invoice.pdf','AP-SYN-001.pdf']:
+            self.assertFalse(is_synthetic_invoice({'filename':name}))
+
 if __name__=='__main__':unittest.main()

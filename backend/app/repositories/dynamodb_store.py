@@ -173,7 +173,7 @@ def save_invoice(record: dict, *, expected_status: str | None = None) -> dict:
 
 
 def record_invoice_payment(invoice_id: str, amount: Decimal, *, method: str | None,
-                           reference: str | None) -> dict | None:
+                           reference: str | None, payment_date: str | None = None) -> dict | None:
     """Record an additional payment with a conditional balance update."""
     original_item = table().get_item(
         Key={"pk": f"INVOICE#{invoice_id}", "sk": "DATA"}, ConsistentRead=True).get("Item")
@@ -190,6 +190,7 @@ def record_invoice_payment(invoice_id: str, amount: Decimal, *, method: str | No
     received_at = _now()
     history = list(record.get("payment_history") or [])
     history.append({"amount": amount, "method": method, "reference": reference,
+                    "payment_date": payment_date or received_at[:10],
                     "received_at": received_at, "recorded_at": received_at})
     status = "PAID" if updated == total else "PARTIAL"
     saved = {**record, "amount_paid": updated, "payment_status": status,
@@ -434,7 +435,7 @@ def approve_invoice_and_post_stock(record: dict, products: list[dict], *, alread
             "TableName": table().name,
             "Key": {"pk": f"PRODUCT#{product_id}", "sk": "DATA"},
             "UpdateExpression": "SET quantity_on_hand = :new_quantity, payload = :payload",
-            "ConditionExpression": "attribute_exists(pk) AND quantity_on_hand = :current AND quantity_on_hand >= :minimum",
+            "ConditionExpression": "attribute_exists(pk) AND attribute_not_exists(merged_into) AND quantity_on_hand = :current AND quantity_on_hand >= :minimum",
             "ExpressionAttributeValues": {":new_quantity": Decimal(product["quantity_on_hand"]),
                                           ":payload": json.dumps(product, default=_json_default, separators=(",", ":")),
                                           ":current": Decimal(by_id[product_id]["quantity_on_hand"]),
@@ -499,6 +500,8 @@ def get_product(product_id: str) -> dict | None:
     if not item:
         return None
     record = _json_load(item["payload"])
+    if record.get("merged_into") or item.get("merged_into"):
+        return None
     record["quantity_on_hand"] = int(item["quantity_on_hand"])
     return record
 
@@ -550,9 +553,55 @@ def list_products() -> list[dict]:
     products = []
     for item in items:
         record = _json_load(item["payload"])
+        if record.get("merged_into") or item.get("merged_into"):
+            continue
         record["quantity_on_hand"] = int(item["quantity_on_hand"])
         products.append(record)
     return products
+
+
+def list_parties() -> list[dict]:
+    return [_json_load(item["payload"]) for item in _query_all(
+        KeyConditionExpression=Key("pk").eq("PARTIES"), ConsistentRead=True)]
+
+
+def save_party(record: dict, *, previous: dict | None = None) -> dict:
+    item = _item("PARTIES", f"CONTACT#{record['id']}", "PARTY", record)
+    condition = Attr("pk").not_exists() if previous is None else Attr("payload").eq(
+        json.dumps(previous, default=_json_default, separators=(",", ":")))
+    try:
+        table().put_item(Item=item, **_condition_kwargs(condition))
+    except table().meta.client.exceptions.ConditionalCheckFailedException as exc:
+        raise ValueError("Contact changed or already exists; refresh and retry.") from exc
+    return record
+
+
+def confirm_stock_count(product_id: str, counted_quantity: int, expected_quantity: int) -> dict | None:
+    original = table().get_item(Key={"pk": f"PRODUCT#{product_id}", "sk": "DATA"},
+                                ConsistentRead=True).get("Item")
+    if not original:
+        return None
+    if int(original["quantity_on_hand"]) != expected_quantity or counted_quantity != expected_quantity:
+        raise ValueError("Count differs from recorded stock. Refresh and record a stock correction with a reason first.")
+    timestamp = _now()
+    updated = {**_json_load(original["payload"]), "quantity_on_hand": counted_quantity,
+               "stock_count_verified": True, "stock_count_verified_at": timestamp,
+               "last_counted_quantity": counted_quantity}
+    movement = {"id": uuid4().hex, "product_id": product_id, "quantity_change": 0,
+                "reason": f"Physical count confirmed: {counted_quantity} units",
+                "created_at": timestamp, "effective_date": timestamp[:10], "movement_type": "COUNT_VERIFICATION"}
+    try:
+        table().meta.client.transact_write_items(TransactItems=[
+            {"Update": {"TableName": table().name, "Key": {"pk": f"PRODUCT#{product_id}", "sk": "DATA"},
+                "UpdateExpression": "SET payload = :payload",
+                "ConditionExpression": "payload = :expected_payload AND quantity_on_hand = :expected_quantity",
+                "ExpressionAttributeValues": {":payload": json.dumps(updated, default=_json_default, separators=(",", ":")),
+                    ":expected_payload": original["payload"], ":expected_quantity": expected_quantity}}},
+            {"Put": {"TableName": table().name, "Item": _item(f"PRODUCT#{product_id}",
+                f"MOVEMENT#{timestamp}#{movement['id']}", "STOCK_MOVEMENT", movement)}}])
+    except table().meta.client.exceptions.TransactionCanceledException as exc:
+        raise ValueError("Stock changed while confirming the count; refresh and count again.") from exc
+    return updated
 
 
 def get_pricing_policy() -> dict:
@@ -584,6 +633,7 @@ def add_stock_movement(product_id: str, change: int, reason: str, *, effective_d
     delta = Decimal(int(change))
     condition = (Attr("quantity_on_hand").gte(Decimal(abs(int(change))))
                  if change < 0 else Attr("quantity_on_hand").exists())
+    condition = condition & Attr("merged_into").not_exists() & Attr("quantity_on_hand").eq(int(product["quantity_on_hand"]))
     condition_params = _condition_kwargs(condition)
     names = condition_params.get("ExpressionAttributeNames", {})
     values = {**condition_params.get("ExpressionAttributeValues", {}), ":delta": delta}
@@ -612,7 +662,8 @@ def list_movements(product_id: str) -> list[dict]:
         & Key("sk").begins_with("MOVEMENT#"),
         ScanIndexForward=False,
     )
-    return [_json_load(item["payload"]) for item in items]
+    return sorted([_json_load(item["payload"]) for item in items],
+                  key=lambda row: str(row.get("created_at") or ""), reverse=True)
 
 
 def create_forecast(record: dict) -> dict:
